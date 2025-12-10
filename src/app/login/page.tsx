@@ -1,27 +1,38 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Lock, Mail, Eye, EyeOff } from "lucide-react";
+import { GraduationCap, Lock, Mail, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useAuthStore } from "@/lib/store/auth.store";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { login, isLoading, error, clearError } = useAuthStore();
+
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    email: "",
-    password: "",
+    email: "adminofficer@deped.gov.ph",
+    password: "AdminOfficer123!",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle login logic here
-    console.log("Login attempt:", formData);
+    clearError();
 
-    // Redirect to dashboard (in production, this would be after successful authentication)
-    window.location.href = "/dashboard";
+    try {
+      await login(formData);
+
+      // Redirect to dashboard on successful login
+      router.push("/dashboard");
+    } catch (err: any) {
+      // Error is already set in the store
+      console.error("Login error:", err);
+    }
   };
 
   return (
@@ -63,6 +74,17 @@ export default function LoginPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Error Alert */}
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 fade-in">
+                    <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-red-900">Login Failed</p>
+                      <p className="text-xs text-red-700 mt-1">{error}</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Email Field */}
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-sm font-semibold text-gray-700">
@@ -146,10 +168,28 @@ export default function LoginPage() {
                 {/* Submit Button */}
                 <Button
                   type="submit"
-                  className="w-full h-11 bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
+                  disabled={isLoading}
+                  className="w-full h-11 bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
-                  Sign In
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    "Sign In"
+                  )}
                 </Button>
+
+                {/* Test Credentials Info */}
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs font-semibold text-blue-900 mb-2">Test Credentials:</p>
+                  <div className="space-y-1 text-xs text-blue-700">
+                    <p><strong>Admin Officer:</strong> adminofficer@deped.gov.ph / AdminOfficer123!</p>
+                    <p><strong>School Head:</strong> schoolhead@deped.gov.ph / SchoolHead123!</p>
+                    <p><strong>Teacher:</strong> teacher@deped.gov.ph / Teacher123!</p>
+                  </div>
+                </div>
 
                 {/* Divider */}
                 <div className="relative my-6">

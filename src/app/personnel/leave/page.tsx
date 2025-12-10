@@ -1,35 +1,80 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LeaveCalendar } from "@/components/leave/leave-calendar";
-import { leaveRequests, LeaveRequest, employees } from "@/lib/data/personnel";
+import { personnelService, LeaveRequest } from "@/lib/api/services";
 import { formatDate } from "@/lib/utils";
-import { ArrowLeft, Plus, Check, X, Calendar } from "lucide-react";
+import { ArrowLeft, Plus, Check, X, Calendar, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/lib/store/auth.store";
 
 export default function LeaveManagementPage() {
   const [activeTab, setActiveTab] = useState<"list" | "calendar">("list");
-  const [requests, setRequests] = useState(leaveRequests);
+  const [requests, setRequests] = useState<LeaveRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuthStore();
 
-  const handleApprove = (id: string) => {
-    setRequests((prev) =>
-      prev.map((req) =>
-        req.id === id ? { ...req, status: "Approved" as const } : req
-      )
-    );
+  useEffect(() => {
+    loadLeaveRequests();
+  }, []);
+
+  const loadLeaveRequests = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await personnelService.getLeaveRequests({
+        per_page: 100,
+      });
+
+      // Ensure response.data exists and is an array
+      const requestData = Array.isArray(response.data) ? response.data : [];
+      setRequests(requestData);
+    } catch (err: any) {
+      console.error("Failed to load leave requests:", err);
+      setError(err.message || "Failed to load leave requests");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleReject = (id: string) => {
-    setRequests((prev) =>
-      prev.map((req) =>
-        req.id === id ? { ...req, status: "Rejected" as const } : req
-      )
-    );
+  const handleApprove = async (id: number) => {
+    if (!user) {
+      alert("You must be logged in to approve leave requests");
+      return;
+    }
+
+    try {
+      await personnelService.approveLeaveRequest(id, user.id);
+      // Reload the list
+      await loadLeaveRequests();
+    } catch (err: any) {
+      alert(err.message || "Failed to approve leave request");
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    if (!user) {
+      alert("You must be logged in to reject leave requests");
+      return;
+    }
+
+    const reason = prompt("Please enter the reason for rejection:");
+    if (!reason) return;
+
+    try {
+      await personnelService.disapproveLeaveRequest(id, user.id, reason);
+      // Reload the list
+      await loadLeaveRequests();
+    } catch (err: any) {
+      alert(err.message || "Failed to reject leave request");
+    }
   };
 
   const columns: Column<LeaveRequest>[] = [
@@ -37,29 +82,26 @@ export default function LeaveManagementPage() {
       header: "Request ID",
       accessor: "id",
       cell: (value) => (
-        <span className="font-mono text-sm font-medium">{value}</span>
+        <span className="font-mono text-sm font-medium">LR-{value}</span>
       ),
     },
     {
       header: "Employee",
-      accessor: "employeeName",
-      cell: (value, row) => (
+      accessor: "employee_name",
+      cell: (value) => (
         <div>
           <p className="font-medium">{value}</p>
-          <p className="text-xs text-muted-foreground">
-            {employees.find((e) => e.id === row.employeeId)?.position || ""}
-          </p>
         </div>
       ),
     },
     {
       header: "Leave Type",
-      accessor: "leaveType",
+      accessor: "leave_type",
       cell: (value) => {
         const variant =
-          value === "Vacation"
+          value === "Vacation Leave"
             ? "default"
-            : value === "Sick"
+            : value === "Sick Leave"
               ? "warning"
               : "secondary";
         return <Badge variant={variant as any}>{value}</Badge>;
@@ -70,10 +112,10 @@ export default function LeaveManagementPage() {
       accessor: (row) => row,
       cell: (_, row) => (
         <div className="text-sm">
-          <p>{formatDate(row.startDate)}</p>
-          <p className="text-muted-foreground">to {formatDate(row.endDate)}</p>
+          <p>{formatDate(row.start_date)}</p>
+          <p className="text-muted-foreground">to {formatDate(row.end_date)}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {row.days} {row.days === 1 ? "day" : "days"}
+            {row.working_days} {row.working_days === 1 ? "day" : "days"}
           </p>
         </div>
       ),
@@ -89,7 +131,7 @@ export default function LeaveManagementPage() {
     },
     {
       header: "Submitted",
-      accessor: "submittedDate",
+      accessor: "created_at",
       cell: (value) => <span className="text-sm">{formatDate(value)}</span>,
     },
     {
@@ -144,8 +186,42 @@ export default function LeaveManagementPage() {
     total: requests.length,
     pending: requests.filter((r) => r.status === "Pending").length,
     approved: requests.filter((r) => r.status === "Approved").length,
-    rejected: requests.filter((r) => r.status === "Rejected").length,
+    rejected: requests.filter((r) => r.status === "Disapproved").length,
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground">Loading leave requests...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-4">
+              <AlertCircle className="h-8 w-8 text-destructive flex-shrink-0" />
+              <div className="space-y-2">
+                <h3 className="font-semibold text-lg">Failed to Load Leave Requests</h3>
+                <p className="text-sm text-muted-foreground">{error}</p>
+                <Button onClick={loadLeaveRequests} className="mt-4">
+                  Try Again
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

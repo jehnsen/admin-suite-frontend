@@ -13,55 +13,93 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { personnelService, CreateEmployeeData } from "@/lib/api/services";
 
 export default function NewPersonnelPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    employeeNumber: "",
-    firstName: "",
-    middleName: "",
-    lastName: "",
+    employee_number: "",
+    first_name: "",
+    middle_name: "",
+    last_name: "",
     position: "",
     department: "",
-    status: "",
-    dateHired: "",
+    employment_status: "",
+    date_hired: "",
     email: "",
-    phone: "",
-    vacationLeave: "15",
-    sickLeave: "15",
-    specialLeave: "3",
+    contact_number: "",
+    vacation_leave_credits: "15",
+    sick_leave_credits: "15",
+    special_leave_credits: "3",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation
     const newErrors: Record<string, string> = {};
 
-    if (!formData.employeeNumber) newErrors.employeeNumber = "Employee number is required";
-    if (!formData.firstName) newErrors.firstName = "First name is required";
-    if (!formData.lastName) newErrors.lastName = "Last name is required";
+    if (!formData.employee_number) newErrors.employee_number = "Employee number is required";
+    if (!formData.first_name) newErrors.first_name = "First name is required";
+    if (!formData.last_name) newErrors.last_name = "Last name is required";
     if (!formData.position) newErrors.position = "Position is required";
     if (!formData.department) newErrors.department = "Department is required";
-    if (!formData.status) newErrors.status = "Employment status is required";
-    if (!formData.dateHired) newErrors.dateHired = "Date hired is required";
+    if (!formData.employment_status) newErrors.employment_status = "Employment status is required";
+    if (!formData.date_hired) newErrors.date_hired = "Date hired is required";
     if (!formData.email) newErrors.email = "Email is required";
-    if (!formData.phone) newErrors.phone = "Phone is required";
+    if (!formData.contact_number) newErrors.contact_number = "Phone is required";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
 
-    // In a real app, this would save to the backend
-    console.log("Form submitted:", formData);
+    try {
+      setIsLoading(true);
+      setApiError(null);
 
-    // Redirect back to personnel list
-    router.push("/personnel");
+      // Prepare data for API (with defaults for required fields not in form)
+      const employeeData: CreateEmployeeData = {
+        employee_number: formData.employee_number,
+        first_name: formData.first_name,
+        middle_name: formData.middle_name || undefined,
+        last_name: formData.last_name,
+        position: formData.position,
+        department: formData.department,
+        employment_status: formData.employment_status,
+        date_hired: formData.date_hired,
+        email: formData.email,
+        contact_number: formData.contact_number,
+        vacation_leave_credits: parseFloat(formData.vacation_leave_credits) || 15,
+        sick_leave_credits: parseFloat(formData.sick_leave_credits) || 15,
+        // Required fields with defaults (not in current form)
+        birth_date: "1990-01-01", // Default placeholder
+        sex: "Male", // Default placeholder
+        civil_status: "Single", // Default placeholder
+        address: "TBD", // To be determined
+        salary_grade: 1, // Default
+        step_increment: 1, // Default
+        monthly_salary: 0, // Default
+        status: "Active",
+      };
+
+      // Call API to create employee
+      await personnelService.createEmployee(employeeData);
+
+      // Success - redirect back to personnel list
+      router.push("/personnel");
+    } catch (err: any) {
+      console.error("Failed to create employee:", err);
+      setApiError(err.message || "Failed to create employee. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChange = (field: string, value: string) => {
@@ -105,84 +143,89 @@ export default function NewPersonnelPage() {
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="employeeNumber">
+                    <Label htmlFor="employee_number">
                       Employee Number <span className="text-red-500">*</span>
                     </Label>
                     <Input
-                      id="employeeNumber"
+                      id="employee_number"
                       placeholder="EMP-2025-001"
-                      value={formData.employeeNumber}
+                      value={formData.employee_number}
                       onChange={(e) =>
-                        handleChange("employeeNumber", e.target.value)
+                        handleChange("employee_number", e.target.value)
                       }
-                      className={errors.employeeNumber ? "border-red-500" : ""}
+                      className={errors.employee_number ? "border-red-500" : ""}
+                      disabled={isLoading}
                     />
-                    {errors.employeeNumber && (
+                    {errors.employee_number && (
                       <p className="text-xs text-red-500">
-                        {errors.employeeNumber}
+                        {errors.employee_number}
                       </p>
                     )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="dateHired">
+                    <Label htmlFor="date_hired">
                       Date Hired <span className="text-red-500">*</span>
                     </Label>
                     <Input
-                      id="dateHired"
+                      id="date_hired"
                       type="date"
-                      value={formData.dateHired}
-                      onChange={(e) => handleChange("dateHired", e.target.value)}
-                      className={errors.dateHired ? "border-red-500" : ""}
+                      value={formData.date_hired}
+                      onChange={(e) => handleChange("date_hired", e.target.value)}
+                      className={errors.date_hired ? "border-red-500" : ""}
+                      disabled={isLoading}
                     />
-                    {errors.dateHired && (
-                      <p className="text-xs text-red-500">{errors.dateHired}</p>
+                    {errors.date_hired && (
+                      <p className="text-xs text-red-500">{errors.date_hired}</p>
                     )}
                   </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="firstName">
+                    <Label htmlFor="first_name">
                       First Name <span className="text-red-500">*</span>
                     </Label>
                     <Input
-                      id="firstName"
+                      id="first_name"
                       placeholder="Juan"
-                      value={formData.firstName}
-                      onChange={(e) => handleChange("firstName", e.target.value)}
-                      className={errors.firstName ? "border-red-500" : ""}
+                      value={formData.first_name}
+                      onChange={(e) => handleChange("first_name", e.target.value)}
+                      className={errors.first_name ? "border-red-500" : ""}
+                      disabled={isLoading}
                     />
-                    {errors.firstName && (
-                      <p className="text-xs text-red-500">{errors.firstName}</p>
+                    {errors.first_name && (
+                      <p className="text-xs text-red-500">{errors.first_name}</p>
                     )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="middleName">Middle Name</Label>
+                    <Label htmlFor="middle_name">Middle Name</Label>
                     <Input
-                      id="middleName"
+                      id="middle_name"
                       placeholder="Garcia"
-                      value={formData.middleName}
+                      value={formData.middle_name}
                       onChange={(e) =>
-                        handleChange("middleName", e.target.value)
+                        handleChange("middle_name", e.target.value)
                       }
+                      disabled={isLoading}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="lastName">
+                    <Label htmlFor="last_name">
                       Last Name <span className="text-red-500">*</span>
                     </Label>
                     <Input
-                      id="lastName"
+                      id="last_name"
                       placeholder="Dela Cruz"
-                      value={formData.lastName}
-                      onChange={(e) => handleChange("lastName", e.target.value)}
-                      className={errors.lastName ? "border-red-500" : ""}
+                      value={formData.last_name}
+                      onChange={(e) => handleChange("last_name", e.target.value)}
+                      className={errors.last_name ? "border-red-500" : ""}
+                      disabled={isLoading}
                     />
-                    {errors.lastName && (
-                      <p className="text-xs text-red-500">{errors.lastName}</p>
+                    {errors.last_name && (
+                      <p className="text-xs text-red-500">{errors.last_name}</p>
                     )}
                   </div>
                 </div>
@@ -276,15 +319,16 @@ export default function NewPersonnelPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="status">
+                  <Label htmlFor="employment_status">
                     Employment Status <span className="text-red-500">*</span>
                   </Label>
                   <Select
-                    value={formData.status}
-                    onValueChange={(value) => handleChange("status", value)}
+                    value={formData.employment_status}
+                    onValueChange={(value) => handleChange("employment_status", value)}
+                    disabled={isLoading}
                   >
                     <SelectTrigger
-                      className={errors.status ? "border-red-500" : ""}
+                      className={errors.employment_status ? "border-red-500" : ""}
                     >
                       <SelectValue placeholder="Select employment status" />
                     </SelectTrigger>
@@ -294,8 +338,8 @@ export default function NewPersonnelPage() {
                       <SelectItem value="Contract">Contract</SelectItem>
                     </SelectContent>
                   </Select>
-                  {errors.status && (
-                    <p className="text-xs text-red-500">{errors.status}</p>
+                  {errors.employment_status && (
+                    <p className="text-xs text-red-500">{errors.employment_status}</p>
                   )}
                 </div>
               </CardContent>
@@ -318,6 +362,7 @@ export default function NewPersonnelPage() {
                     value={formData.email}
                     onChange={(e) => handleChange("email", e.target.value)}
                     className={errors.email ? "border-red-500" : ""}
+                    disabled={isLoading}
                   />
                   {errors.email && (
                     <p className="text-xs text-red-500">{errors.email}</p>
@@ -325,19 +370,20 @@ export default function NewPersonnelPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="phone">
+                  <Label htmlFor="contact_number">
                     Phone <span className="text-red-500">*</span>
                   </Label>
                   <Input
-                    id="phone"
+                    id="contact_number"
                     type="tel"
                     placeholder="+63 912 345 6789"
-                    value={formData.phone}
-                    onChange={(e) => handleChange("phone", e.target.value)}
-                    className={errors.phone ? "border-red-500" : ""}
+                    value={formData.contact_number}
+                    onChange={(e) => handleChange("contact_number", e.target.value)}
+                    className={errors.contact_number ? "border-red-500" : ""}
+                    disabled={isLoading}
                   />
-                  {errors.phone && (
-                    <p className="text-xs text-red-500">{errors.phone}</p>
+                  {errors.contact_number && (
+                    <p className="text-xs text-red-500">{errors.contact_number}</p>
                   )}
                 </div>
               </CardContent>
@@ -353,39 +399,42 @@ export default function NewPersonnelPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="vacationLeave">Vacation Leave</Label>
+                  <Label htmlFor="vacation_leave_credits">Vacation Leave</Label>
                   <Input
-                    id="vacationLeave"
+                    id="vacation_leave_credits"
                     type="number"
                     step="0.5"
-                    value={formData.vacationLeave}
+                    value={formData.vacation_leave_credits}
                     onChange={(e) =>
-                      handleChange("vacationLeave", e.target.value)
+                      handleChange("vacation_leave_credits", e.target.value)
                     }
+                    disabled={isLoading}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="sickLeave">Sick Leave</Label>
+                  <Label htmlFor="sick_leave_credits">Sick Leave</Label>
                   <Input
-                    id="sickLeave"
+                    id="sick_leave_credits"
                     type="number"
                     step="0.5"
-                    value={formData.sickLeave}
-                    onChange={(e) => handleChange("sickLeave", e.target.value)}
+                    value={formData.sick_leave_credits}
+                    onChange={(e) => handleChange("sick_leave_credits", e.target.value)}
+                    disabled={isLoading}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="specialLeave">Special Leave</Label>
+                  <Label htmlFor="special_leave_credits">Special Leave</Label>
                   <Input
-                    id="specialLeave"
+                    id="special_leave_credits"
                     type="number"
                     step="0.5"
-                    value={formData.specialLeave}
+                    value={formData.special_leave_credits}
                     onChange={(e) =>
-                      handleChange("specialLeave", e.target.value)
+                      handleChange("special_leave_credits", e.target.value)
                     }
+                    disabled={isLoading}
                   />
                 </div>
               </CardContent>
@@ -394,12 +443,26 @@ export default function NewPersonnelPage() {
             {/* Actions */}
             <Card>
               <CardContent className="pt-6 space-y-2">
-                <Button type="submit" className="w-full">
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Employee
+                {apiError && (
+                  <div className="p-3 mb-2 text-sm text-red-600 bg-red-50 rounded-md">
+                    {apiError}
+                  </div>
+                )}
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Employee
+                    </>
+                  )}
                 </Button>
                 <Link href="/personnel" className="block">
-                  <Button type="button" variant="outline" className="w-full">
+                  <Button type="button" variant="outline" className="w-full" disabled={isLoading}>
                     Cancel
                   </Button>
                 </Link>

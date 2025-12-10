@@ -1,0 +1,1 @@
+Always ask me if you are creating new .md files

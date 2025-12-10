@@ -1,34 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  inventoryItems,
-  InventoryItem,
-  issuanceRecords,
-} from "@/lib/data/inventory";
+import { inventoryService, InventoryItem, StockCard } from "@/lib/api/services";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Plus, Package, AlertTriangle, FileText } from "lucide-react";
+import { Plus, Package, AlertTriangle, FileText, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<"items" | "issuance">("items");
+  const [activeTab, setActiveTab] = useState<"items" | "stock">("items");
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [stockCards, setStockCards] = useState<StockCard[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab === "items") {
+      loadInventoryItems();
+    } else {
+      loadStockCards();
+    }
+  }, [activeTab]);
+
+  const loadInventoryItems = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await inventoryService.getInventoryItems({
+        per_page: 100,
+      });
+
+      // Ensure response.data exists and is an array
+      const itemData = Array.isArray(response.data) ? response.data : [];
+      setItems(itemData);
+    } catch (err: any) {
+      console.error("Failed to load inventory items:", err);
+      setError(err.message || "Failed to load inventory items");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadStockCards = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await inventoryService.getStockCards({
+        per_page: 100,
+      });
+
+      // Ensure response.data exists and is an array
+      const stockData = Array.isArray(response.data) ? response.data : [];
+      setStockCards(stockData);
+    } catch (err: any) {
+      console.error("Failed to load stock cards:", err);
+      setError(err.message || "Failed to load stock cards");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const itemColumns: Column<InventoryItem>[] = [
     {
       header: "Item Code",
-      accessor: "itemCode",
+      accessor: "item_code",
       cell: (value) => (
         <span className="font-mono text-sm font-medium">{value}</span>
       ),
     },
     {
       header: "Item Name",
-      accessor: "name",
+      accessor: "item_name",
       cell: (value, row) => (
         <div>
           <p className="font-medium">{value}</p>
@@ -38,99 +86,101 @@ export default function InventoryPage() {
     },
     {
       header: "Quantity",
-      accessor: (row) => row,
-      cell: (_, row) => (
+      accessor: "quantity",
+      cell: (value, row) => (
         <div>
           <p className="font-medium">
             {row.quantity} {row.unit}
           </p>
-          {row.quantity < row.threshold && (
+          {row.quantity < 10 && (
             <div className="flex items-center gap-1 mt-1">
               <AlertTriangle className="h-3 w-3 text-red-600" />
-              <span className="text-xs text-red-600">Below threshold</span>
+              <span className="text-xs text-red-600">Low stock</span>
             </div>
           )}
         </div>
       ),
     },
     {
-      header: "Unit Cost",
-      accessor: "unitCost",
-      cell: (value) => <span className="text-sm">{formatCurrency(value)}</span>,
-    },
-    {
-      header: "Total Value",
-      accessor: "totalValue",
-      cell: (value) => (
-        <span className="text-sm font-medium">{formatCurrency(value)}</span>
-      ),
+      header: "Book Value",
+      accessor: "book_value",
+      cell: (value) => <span className="text-sm font-medium">{formatCurrency(parseFloat(value) || 0)}</span>,
     },
     {
       header: "Location",
       accessor: "location",
-    },
-    {
-      header: "Status",
-      accessor: (row) => row,
-      cell: (_, row) => {
-        const isLow = row.quantity < row.threshold;
-        return (
-          <Badge variant={isLow ? "destructive" : "success"}>
-            {isLow ? "Low Stock" : "In Stock"}
-          </Badge>
-        );
-      },
-    },
-    {
-      header: "Last Updated",
-      accessor: "lastUpdated",
-      cell: (value) => <span className="text-sm">{formatDate(value)}</span>,
-    },
-  ];
-
-  const issuanceColumns: Column<typeof issuanceRecords[0]>[] = [
-    {
-      header: "Issuance ID",
-      accessor: "id",
-      cell: (value) => (
-        <span className="font-mono text-sm font-medium">{value}</span>
-      ),
-    },
-    {
-      header: "Item Name",
-      accessor: "itemName",
-    },
-    {
-      header: "Custodian",
-      accessor: "custodian",
-      cell: (value, row) => (
-        <div>
-          <p className="font-medium">{value}</p>
-          <p className="text-xs text-muted-foreground">{row.department}</p>
-        </div>
-      ),
-    },
-    {
-      header: "Quantity",
-      accessor: "quantityIssued",
-    },
-    {
-      header: "Date Issued",
-      accessor: "dateIssued",
-      cell: (value) => <span className="text-sm">{formatDate(value)}</span>,
+      cell: (value) => <span className="text-sm">{value || "—"}</span>,
     },
     {
       header: "Status",
       accessor: "status",
       cell: (value) => {
         const variant =
-          value === "Working"
-            ? "success"
-            : value === "Defective"
-              ? "destructive"
-              : "default";
+          value === "Low Stock" ? "destructive" :
+          value === "Out of Stock" ? "destructive" : "default";
+        return (
+          <Badge variant={variant as any}>
+            {value}
+          </Badge>
+        );
+      },
+    },
+    {
+      header: "Last Updated",
+      accessor: "updated_at",
+      cell: (value) => value ? <span className="text-sm">{formatDate(value)}</span> : "—",
+    },
+  ];
+
+  const stockColumns: Column<StockCard>[] = [
+    {
+      header: "Transaction Date",
+      accessor: "transaction_date",
+      cell: (value) => (
+        <span className="text-sm">{formatDate(value)}</span>
+      ),
+    },
+    {
+      header: "Item Name",
+      accessor: "item_name",
+    },
+    {
+      header: "Type",
+      accessor: "transaction_type",
+      cell: (value) => {
+        const variant =
+          value === "Stock In" ? "success" :
+          value === "Stock Out" ? "destructive" : "default";
         return <Badge variant={variant as any}>{value}</Badge>;
       },
+    },
+    {
+      header: "Reference",
+      accessor: "reference_number",
+      cell: (value) => (
+        <span className="font-mono text-sm">{value}</span>
+      ),
+    },
+    {
+      header: "Quantity In",
+      accessor: "quantity_in",
+      cell: (value) => value > 0 ? (
+        <span className="text-green-600 font-medium">+{value}</span>
+      ) : "—",
+    },
+    {
+      header: "Quantity Out",
+      accessor: "quantity_out",
+      cell: (value) => value > 0 ? (
+        <span className="text-red-600 font-medium">-{value}</span>
+      ) : "—",
+    },
+    {
+      header: "Balance",
+      accessor: "balance",
+      cell: (value) => (
+        <span className="font-medium">{value}</span>
+      ),
     },
     {
       header: "Remarks",
@@ -144,16 +194,50 @@ export default function InventoryPage() {
   ];
 
   const stats = {
-    totalItems: inventoryItems.length,
-    lowStock: inventoryItems.filter((item) => item.quantity < item.threshold)
-      .length,
-    totalValue: inventoryItems.reduce((sum, item) => sum + item.totalValue, 0),
-    equipment: inventoryItems.filter((item) => item.category === "Equipment")
-      .length,
-    consumables: inventoryItems.filter(
-      (item) => item.category === "Consumable"
-    ).length,
+    totalItems: items.length,
+    // If InventoryItem does not have a threshold property, set a default threshold value (e.g., 10)
+    lowStock: items.filter((item) => item.quantity < 10).length,
+     totalValue: items.reduce((sum, item) => sum + ((parseFloat(item.book_value) || 0) * (item.quantity || 0)), 0),
+    // totalValue: items.reduce((sum, item) => sum + item.totalValue, 0),
+    equipment: items.filter((item) => item.category === "Equipment").length,
+    consumables: items.filter((item) => item.category === "Consumable").length,
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground">
+            Loading {activeTab === "items" ? "inventory items" : "stock cards"}...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-4">
+              <AlertCircle className="h-8 w-8 text-destructive flex-shrink-0" />
+              <div className="space-y-2">
+                <h3 className="font-semibold text-lg">Failed to Load Data</h3>
+                <p className="text-sm text-muted-foreground">{error}</p>
+                <Button onClick={() => activeTab === "items" ? loadInventoryItems() : loadStockCards()} className="mt-4">
+                  Try Again
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -171,7 +255,7 @@ export default function InventoryPage() {
           <Link href="/inventory/issue">
             <Button variant="outline">
               <FileText className="mr-2 h-4 w-4" />
-              Issue Item
+              Stock Transaction
             </Button>
           </Link>
           <Link href="/inventory/new">
@@ -247,16 +331,16 @@ export default function InventoryPage() {
             Inventory Items
           </button>
           <button
-            onClick={() => setActiveTab("issuance")}
+            onClick={() => setActiveTab("stock")}
             className={cn(
               "flex items-center gap-2 px-1 py-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === "issuance"
+              activeTab === "stock"
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             <FileText className="h-4 w-4" />
-            Issuance Log
+            Stock Cards
           </button>
         </div>
       </div>
@@ -269,7 +353,7 @@ export default function InventoryPage() {
           </CardHeader>
           <CardContent>
             <DataTable
-              data={inventoryItems}
+              data={items}
               columns={itemColumns}
               searchPlaceholder="Search by item name, code, location..."
             />
@@ -277,16 +361,16 @@ export default function InventoryPage() {
         </Card>
       )}
 
-      {activeTab === "issuance" && (
+      {activeTab === "stock" && (
         <Card>
           <CardHeader>
-            <CardTitle>Issuance Log</CardTitle>
+            <CardTitle>Stock Cards (Transaction Ledger)</CardTitle>
           </CardHeader>
           <CardContent>
             <DataTable
-              data={issuanceRecords}
-              columns={issuanceColumns}
-              searchPlaceholder="Search by custodian, item name..."
+              data={stockCards}
+              columns={stockColumns}
+              searchPlaceholder="Search by item name, reference number..."
             />
           </CardContent>
         </Card>
