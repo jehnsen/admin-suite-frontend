@@ -56,9 +56,11 @@ export default function EmployeeProfilePage() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
   const [leaveHistory, setLeaveHistory] = useState<LeaveRequest[]>([]);
+  const [trainingsHistory, setTrainingsHistory] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingServiceRecords, setIsLoadingServiceRecords] = useState(false);
   const [isLoadingLeaveHistory, setIsLoadingLeaveHistory] = useState(false);
+  const [isLoadingTrainingsHistory, setIsLoadingTrainingsHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -110,9 +112,26 @@ export default function EmployeeProfilePage() {
       }
     };
 
+     const fetchTrainingsHistory = async () => {
+      try {
+        setIsLoadingTrainingsHistory(true);
+        const data = await personnelService.getLeaveRequestsByEmployee(Number(params.id));
+        
+        // FIX: Ensure data is an array before setting state
+        setTrainingsHistory(Array.isArray(data) ? data : []);
+        
+      } catch (err: any) {
+        console.error("Failed to fetch leave history:", err);
+        setTrainingsHistory([]); // Fallback to empty array on error
+      } finally {
+        setIsLoadingTrainingsHistory(false);
+      }
+    };
+
     if (params.id) {
       fetchServiceRecords();
       fetchLeaveHistory();
+      fetchTrainingsHistory();
     }
   }, [params.id]);
 

@@ -272,7 +272,7 @@ class PersonnelService {
    * Get leave requests by employee ID
    */
   async getLeaveRequestsByEmployee(employeeId: number): Promise<LeaveRequest[]> {
-    return await apiClient.get<LeaveRequest[]>(`/leave-requests/${employeeId}`);
+    return await apiClient.get<LeaveRequest[]>(`/leave-requests/?per_page=15&employee_id=${employeeId}`);
   }
 
   /**
@@ -372,6 +372,21 @@ class PersonnelService {
     await apiClient.delete(`/service-records/${id}`);
   }
 }
+
+  // // ========== TRAININGS ==========
+  //   /**
+  //  * Get service record by ID
+  //  */
+  // async getTrainingRecord(id: number): Promise<ServiceRecord> {
+  //   return await apiClient.get<ServiceRecord>(`/service-records/${id}`);
+  // }
+
+  //   /**
+  //  * Get service records by employee ID (201 File)
+  //  */
+  // async getTrainingsByEmployee(employeeId: number): Promise<ServiceRecord[]> {
+  //   return await apiClient.get<ServiceRecord[]>(`/service-records/employee/${employeeId}`);
+  // }
 
 // Export singleton instance
 export const personnelService = new PersonnelService();
