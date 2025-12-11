@@ -4,20 +4,26 @@ import apiClient, { PaginatedResponse } from '../client';
 export interface Employee {
   id: number;
   employee_number: string;
+  plantilla_item_no?: string;
   first_name: string;
   last_name: string;
   middle_name?: string;
   suffix?: string;
   full_name: string; // Computed by backend
-  birth_date: string;
-  sex: string;
+  date_of_birth: string;
+  gender: string;
   civil_status: string;
   address: string;
-  contact_number: string;
+  city?: string;
+  province?: string;
+  zip_code?: string;
+  mobile_number: string;
   email: string;
   position: string;
+  position_title?: string;
   employment_status: string;
   date_hired: string;
+  date_separated?: string | null;
   department: string;
   salary_grade: number;
   step_increment: number;
@@ -76,6 +82,10 @@ export interface ServiceRecord {
   remarks?: string;
   created_at: string;
   updated_at: string;
+  designation: string;
+  station_place_of_assignment: string;
+  date_from: string;
+  date_to?: string;
 }
 
 // API Query Parameters
@@ -115,19 +125,25 @@ export interface LeaveStatistics {
 // Create/Update Data
 export interface CreateEmployeeData {
   employee_number: string;
+  plantilla_item_no?: string;
   last_name: string;
   first_name: string;
   middle_name?: string;
   suffix?: string;
-  birth_date: string;
-  sex: string;
+  date_of_birth: string;
+  gender: string;
   civil_status: string;
   address: string;
-  contact_number: string;
+  city?: string;
+  province?: string;
+  zip_code?: string;
+  mobile_number: string;
   email: string;
   position: string;
+  position_title?: string;
   employment_status: string;
   date_hired: string;
+  date_separated?: string | null;
   department: string;
   salary_grade: number;
   step_increment: number;
@@ -250,6 +266,13 @@ class PersonnelService {
    */
   async getLeaveRequest(id: number): Promise<LeaveRequest> {
     return await apiClient.get<LeaveRequest>(`/leave-requests/${id}`);
+  }
+
+  /**
+   * Get leave requests by employee ID
+   */
+  async getLeaveRequestsByEmployee(employeeId: number): Promise<LeaveRequest[]> {
+    return await apiClient.get<LeaveRequest[]>(`/leave-requests/${employeeId}`);
   }
 
   /**

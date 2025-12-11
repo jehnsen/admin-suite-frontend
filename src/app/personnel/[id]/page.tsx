@@ -14,40 +14,14 @@ import {
   FileText,
   Award,
   Clock,
+  Loader2,
 } from "lucide-react";
-import { employees } from "@/lib/data/personnel";
 import { formatDate } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { personnelService, Employee, ServiceRecord, LeaveRequest } from "@/lib/api/services";
 
-// Mock data for service record and training
-const serviceRecord = [
-  {
-    id: "1",
-    position: "Teacher I",
-    department: "Mathematics Department",
-    dateFrom: "2020-06-15",
-    dateTo: "2022-06-14",
-    salary: "₱25,439",
-  },
-  {
-    id: "2",
-    position: "Teacher II",
-    department: "Mathematics Department",
-    dateFrom: "2022-06-15",
-    dateTo: "2024-06-14",
-    salary: "₱27,000",
-  },
-  {
-    id: "3",
-    position: "Teacher III",
-    department: "Mathematics Department",
-    dateFrom: "2024-06-15",
-    dateTo: "Present",
-    salary: "₱29,165",
-  },
-];
-
+// Mock data for training (not yet implemented in API)
 const trainingAttended = [
   {
     id: "1",
@@ -75,44 +49,88 @@ const trainingAttended = [
   },
 ];
 
-const leaveHistory = [
-  {
-    id: "1",
-    type: "Vacation Leave",
-    dateFrom: "2024-12-23",
-    dateTo: "2024-12-27",
-    days: 5,
-    status: "Approved",
-  },
-  {
-    id: "2",
-    type: "Sick Leave",
-    dateFrom: "2024-09-15",
-    dateTo: "2024-09-16",
-    days: 2,
-    status: "Approved",
-  },
-  {
-    id: "3",
-    type: "Special Leave",
-    dateFrom: "2024-06-12",
-    dateTo: "2024-06-12",
-    days: 1,
-    status: "Approved",
-  },
-];
-
 export default function EmployeeProfilePage() {
   const params = useParams();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("personal");
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
+  const [leaveHistory, setLeaveHistory] = useState<LeaveRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingServiceRecords, setIsLoadingServiceRecords] = useState(false);
+  const [isLoadingLeaveHistory, setIsLoadingLeaveHistory] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const employee = employees.find((e) => e.id === params.id);
+  useEffect(() => {
+    const fetchEmployee = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await personnelService.getEmployee(Number(params.id));
+        setEmployee(data);
+      } catch (err: any) {
+        console.error("Failed to fetch employee:", err);
+        setError(err.message || "Failed to load employee data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  if (!employee) {
+    if (params.id) {
+      fetchEmployee();
+    }
+  }, [params.id]);
+
+  useEffect(() => {
+    const fetchServiceRecords = async () => {
+      try {
+        setIsLoadingServiceRecords(true);
+        const data = await personnelService.getServiceRecordsByEmployee(Number(params.id));
+        setServiceRecords(data);
+      } catch (err: any) {
+        console.error("Failed to fetch service records:", err);
+      } finally {
+        setIsLoadingServiceRecords(false);
+      }
+    };
+
+    const fetchLeaveHistory = async () => {
+      try {
+        setIsLoadingLeaveHistory(true);
+        const data = await personnelService.getLeaveRequestsByEmployee(Number(params.id));
+        
+        // FIX: Ensure data is an array before setting state
+        setLeaveHistory(Array.isArray(data) ? data : []);
+        
+      } catch (err: any) {
+        console.error("Failed to fetch leave history:", err);
+        setLeaveHistory([]); // Fallback to empty array on error
+      } finally {
+        setIsLoadingLeaveHistory(false);
+      }
+    };
+
+    if (params.id) {
+      fetchServiceRecords();
+      fetchLeaveHistory();
+    }
+  }, [params.id]);
+
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-96">
-        <p className="text-lg text-muted-foreground">Employee not found</p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-lg text-muted-foreground mt-4">Loading employee data...</p>
+      </div>
+    );
+  }
+
+  if (error || !employee) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96">
+        <p className="text-lg text-muted-foreground">
+          {error || "Employee not found"}
+        </p>
         <Button onClick={() => router.push("/personnel")} className="mt-4">
           Back to Personnel List
         </Button>
@@ -120,7 +138,7 @@ export default function EmployeeProfilePage() {
     );
   }
 
-  const fullName = `${employee.firstName} ${employee.middleName ? employee.middleName + " " : ""}${employee.lastName}`;
+  const fullName = `${employee.first_name} ${employee.middle_name ? employee.middle_name + " " : ""}${employee.last_name}`;
 
   const tabs = [
     { id: "personal", label: "Personal Info", icon: FileText },
@@ -143,19 +161,19 @@ export default function EmployeeProfilePage() {
         <div className="flex-1">
           <h1 className="text-3xl font-bold text-gray-900">{fullName}</h1>
           <p className="text-muted-foreground mt-1">
-            Digital 201 File - {employee.employeeNumber}
+            Digital 201 File - {employee.employee_number}
           </p>
         </div>
         <Badge
           variant={
-            employee.status === "Regular"
+            employee.employment_status === "Regular" || employee.employment_status === "Permanent"
               ? "success"
-              : employee.status === "Substitute"
+              : employee.employment_status === "Substitute"
                 ? "warning"
                 : "default"
           }
         >
-          {employee.status}
+          {employee.employment_status}
         </Badge>
       </div>
 
@@ -198,20 +216,20 @@ export default function EmployeeProfilePage() {
                     <label className="text-sm font-medium text-muted-foreground">
                       First Name
                     </label>
-                    <p className="mt-1 text-sm">{employee.firstName}</p>
+                    <p className="mt-1 text-sm">{employee.first_name}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">
                       Last Name
                     </label>
-                    <p className="mt-1 text-sm">{employee.lastName}</p>
+                    <p className="mt-1 text-sm">{employee.last_name}</p>
                   </div>
-                  {employee.middleName && (
+                  {employee.middle_name && (
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">
                         Middle Name
                       </label>
-                      <p className="mt-1 text-sm">{employee.middleName}</p>
+                      <p className="mt-1 text-sm">{employee.middle_name}</p>
                     </div>
                   )}
                   <div>
@@ -219,7 +237,7 @@ export default function EmployeeProfilePage() {
                       Employee Number
                     </label>
                     <p className="mt-1 text-sm font-mono">
-                      {employee.employeeNumber}
+                      {employee.employee_number}
                     </p>
                   </div>
                 </div>
@@ -245,26 +263,26 @@ export default function EmployeeProfilePage() {
                     <label className="text-sm font-medium text-muted-foreground">
                       Employment Status
                     </label>
-                    <p className="mt-1">
+                    <div className="mt-1">
                       <Badge
                         variant={
-                          employee.status === "Regular"
+                          employee.employment_status === "Regular" || employee.employment_status === "Permanent"
                             ? "success"
-                            : employee.status === "Substitute"
+                            : employee.employment_status === "Substitute"
                               ? "warning"
                               : "default"
                         }
                       >
-                        {employee.status}
+                        {employee.employment_status}
                       </Badge>
-                    </p>
+                    </div>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">
                       Date Hired
                     </label>
                     <p className="mt-1 text-sm">
-                      {formatDate(employee.dateHired)}
+                      {employee.date_hired ? formatDate(employee.date_hired) : "N/A"}
                     </p>
                   </div>
                 </div>
@@ -285,9 +303,9 @@ export default function EmployeeProfilePage() {
                     <Phone className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">
-                        Phone
+                        Mobile Number
                       </label>
-                      <p className="text-sm">{employee.phone}</p>
+                      <p className="text-sm">{employee.mobile_number}</p>
                     </div>
                   </div>
                 </div>
@@ -301,27 +319,42 @@ export default function EmployeeProfilePage() {
                 <CardTitle>Service Record</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {serviceRecord.map((record, index) => (
-                    <div
-                      key={record.id}
-                      className="border-l-2 border-primary pl-4 pb-4 last:pb-0"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-medium">{record.position}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {record.department}
-                          </p>
+                {isLoadingServiceRecords ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : serviceRecords.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No service records found
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {serviceRecords.map((record) => (
+                      <div
+                        key={record.id}
+                        className="border-l-2 border-primary pl-4 pb-4 last:pb-0"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-medium">{record.designation}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {record.station_place_of_assignment}
+                            </p>
+                          </div>
+                          <Badge variant="outline">₱{record.monthly_salary.toLocaleString()}</Badge>
                         </div>
-                        <Badge variant="outline">{record.salary}</Badge>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          {formatDate(record.date_from)} - {record.to_date ? formatDate(record.to_date) : "Present"}
+                        </p>
+                        {record.remarks && (
+                          <p className="text-xs text-muted-foreground mt-1 italic">
+                            {record.remarks}
+                          </p>
+                        )}
                       </div>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        {formatDate(record.dateFrom)} - {record.dateTo}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -332,24 +365,51 @@ export default function EmployeeProfilePage() {
                 <CardTitle>Leave History</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {leaveHistory.map((leave) => (
-                    <div
-                      key={leave.id}
-                      className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
-                    >
-                      <div>
-                        <h4 className="font-medium">{leave.type}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {formatDate(leave.dateFrom)} -{" "}
-                          {formatDate(leave.dateTo)} ({leave.days}{" "}
-                          {leave.days === 1 ? "day" : "days"})
-                        </p>
+                {isLoadingLeaveHistory ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : leaveHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No leave history found
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {Array.isArray(leaveHistory) && leaveHistory.map((leave) => (
+                      <div
+                        key={leave.id}
+                        className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
+                      >
+                        <div>
+                          <h4 className="font-medium">{leave.leave_type}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {formatDate(leave.start_date)} -{" "}
+                            {formatDate(leave.end_date)} ({leave.working_days}{" "}
+                            {leave.working_days === 1 ? "day" : "days"})
+                          </p>
+                          {leave.reason && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Reason: {leave.reason}
+                            </p>
+                          )}
+                        </div>
+                        <Badge
+                          variant={
+                            leave.status === "Approved"
+                              ? "success"
+                              : leave.status === "Pending"
+                                ? "warning"
+                                : leave.status === "Disapproved"
+                                  ? "destructive"
+                                  : "default"
+                          }
+                        >
+                          {leave.status}
+                        </Badge>
                       </div>
-                      <Badge variant="success">{leave.status}</Badge>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -401,7 +461,7 @@ export default function EmployeeProfilePage() {
                   Vacation Leave
                 </span>
                 <span className="text-lg font-bold">
-                  {employee.leaveCredits.vacation}
+                  {employee.vacation_leave_credits}
                 </span>
               </div>
               <Separator />
@@ -410,7 +470,7 @@ export default function EmployeeProfilePage() {
                   Sick Leave
                 </span>
                 <span className="text-lg font-bold">
-                  {employee.leaveCredits.sick}
+                  {employee.sick_leave_credits}
                 </span>
               </div>
               <Separator />
@@ -419,7 +479,7 @@ export default function EmployeeProfilePage() {
                   Special Leave
                 </span>
                 <span className="text-lg font-bold">
-                  {employee.leaveCredits.special}
+                  {employee.special_leave_credits || 0}
                 </span>
               </div>
             </CardContent>
