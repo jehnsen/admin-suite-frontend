@@ -75,8 +75,8 @@ export function Sidebar() {
               AS
             </div>
             <div>
-              <h1 className="text-lg font-bold text-danger">AccessGroup</h1>
-              <p className="text-xs text-muted-foreground">Iterable Management</p>
+              <h1 className="text-lg font-bold text-danger">AdminSuite</h1>
+              <p className="text-xs text-muted-foreground">Enrique IT Solutions</p>
             </div>
           </div>
         )}

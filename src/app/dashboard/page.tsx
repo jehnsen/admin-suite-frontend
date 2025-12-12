@@ -37,9 +37,9 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="fade-in">
-        <h1 className="text-3xl font-bold text-red-700">AccessGroup Australia</h1>
+        <h1 className="text-3xl font-bold text-primary">Sta. Maria Senior High</h1>
         <p className="text-muted-foreground mt-1">
-          Welcome back! Here's what's happening in your school today.
+          Welcome back! Here&apos;s what&apos;s happening in your school today.
         </p>
       </div>
 

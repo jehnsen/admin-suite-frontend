@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { inventoryService, StockCard } from "@/lib/api/services/inventory.service";
 import { Button } from "@/components/ui/button";
@@ -109,14 +109,14 @@ export default function ViewIssuanceRecordPage() {
                 </Badge>
             </CardTitle>
             <CardDescription>
-                Transaction recorded on {formatDate(stockCard.transaction_date, true)}
+                Transaction recorded on {formatDate(stockCard.transaction_date)}
             </CardDescription>
         </CardHeader>
         <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <DetailItem icon={Package} label="Item Name" value={stockCard.item_name} />
                 <DetailItem icon={Hash} label="Quantity Issued" value={`${stockCard.quantity_out} units`} />
-                <DetailItem icon={Calendar} label="Transaction Date" value={formatDate(stockCard.transaction_date, true)} />
+                <DetailItem icon={Calendar} label="Transaction Date" value={formatDate(stockCard.transaction_date)} />
                 
                 <DetailItem icon={User} label="Issued To / Recipient" value={stockCard.remarks} />
                 <DetailItem icon={FileText} label="Reference Document" value={stockCard.reference_number} />

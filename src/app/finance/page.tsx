@@ -1,35 +1,60 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  expenses,
-  Expense,
-  budgetAllocations,
-  BudgetAllocation,
-} from "@/lib/data/finance";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Plus, DollarSign, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, DollarSign, TrendingUp, TrendingDown, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useFinanceStore } from "@/lib/store/finance.store";
+import type { Disbursement, BudgetAllocation } from "@/lib/api/services/finance.service";
 
 export default function FinancePage() {
   const [activeTab, setActiveTab] = useState<"expenses" | "budget">("expenses");
 
-  const expenseColumns: Column<Expense>[] = [
+  const {
+    disbursements,
+    budgetAllocations,
+    isLoading,
+    error,
+    fetchDisbursements,
+    fetchBudgetAllocations,
+    clearError,
+  } = useFinanceStore();
+
+  // Fetch data on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await fetchDisbursements();
+      } catch (err) {
+        console.error('Error loading disbursements:', err);
+      }
+
+      try {
+        await fetchBudgetAllocations();
+      } catch (err) {
+        console.error('Error loading budget allocations:', err);
+      }
+    };
+
+    loadData();
+  }, [fetchDisbursements, fetchBudgetAllocations]);
+
+  const expenseColumns: Column<Disbursement>[] = [
     {
-      header: "Expense ID",
-      accessor: "id",
+      header: "DV Number",
+      accessor: "dv_number" as any,
       cell: (value) => (
         <span className="font-mono text-sm font-medium">{value}</span>
       ),
     },
     {
       header: "Date",
-      accessor: "date",
+      accessor: "created_date" as any,
       cell: (value) => <span className="text-sm">{formatDate(value)}</span>,
     },
     {
@@ -38,12 +63,12 @@ export default function FinancePage() {
       cell: (value) => <p className="font-medium">{value}</p>,
     },
     {
-      header: "Particulars",
-      accessor: "particulars",
+      header: "Purpose",
+      accessor: "purpose" as any,
       cell: (value, row) => (
         <div>
           <p className="text-sm">{value}</p>
-          <p className="text-xs text-muted-foreground mt-1">{row.category}</p>
+          <p className="text-xs text-muted-foreground mt-1">{row.fund_source}</p>
         </div>
       ),
     },
@@ -55,8 +80,8 @@ export default function FinancePage() {
       ),
     },
     {
-      header: "Source",
-      accessor: "source",
+      header: "Fund Source",
+      accessor: "fund_source" as any,
       cell: (value) => {
         const variant =
           value === "MOOE"
@@ -74,15 +99,17 @@ export default function FinancePage() {
         const variant =
           value === "Paid"
             ? "success"
-            : value === "Pending"
-              ? "warning"
-              : "destructive";
+            : value === "Approved"
+              ? "default"
+              : value === "Certified"
+                ? "secondary"
+                : "outline";
         return <Badge variant={variant as any}>{value}</Badge>;
       },
     },
     {
-      header: "Receipt No.",
-      accessor: "receiptNumber",
+      header: "Check No.",
+      accessor: "check_number" as any,
       cell: (value) => (
         <span className="text-sm font-mono">{value || "—"}</span>
       ),
@@ -90,16 +117,47 @@ export default function FinancePage() {
   ];
 
   const stats = {
-    totalExpenses: expenses.reduce((sum, exp) => sum + exp.amount, 0),
-    paidExpenses: expenses.filter((e) => e.status === "Paid").length,
-    pendingExpenses: expenses.filter((e) => e.status === "Pending").length,
-    mooeSpent: expenses
-      .filter((e) => e.source === "MOOE" && e.status === "Paid")
+    totalExpenses: (disbursements || []).reduce((sum, exp) => sum + exp.amount, 0),
+    paidExpenses: (disbursements || []).filter((e) => e.status === "Paid").length,
+    pendingExpenses: (disbursements || []).filter((e) => e.status === "Draft" || e.status === "Certified").length,
+    mooeSpent: (disbursements || [])
+      .filter((e) => e.fund_source === "MOOE" && e.status === "Paid")
       .reduce((sum, e) => sum + e.amount, 0),
   };
 
+  // Loading state
+  if (isLoading && (!disbursements || disbursements.length === 0)) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading financial data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Error Alert */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-900">Error loading data</p>
+            <p className="text-xs text-red-700 mt-1">{error}</p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={clearError}
+            className="shrink-0"
+          >
+            Dismiss
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -107,13 +165,13 @@ export default function FinancePage() {
             Financial Management
           </h1>
           <p className="text-muted-foreground mt-1">
-            Track expenses, manage budgets, and monitor financial utilization
+            Track disbursements, manage budgets, and monitor financial utilization
           </p>
         </div>
         <Link href="/finance/expense/new">
           <Button>
             <Plus className="mr-2 h-4 w-4" />
-            Log Expense
+            New Disbursement
           </Button>
         </Link>
       </div>
@@ -199,13 +257,13 @@ export default function FinancePage() {
       {activeTab === "expenses" && (
         <Card>
           <CardHeader>
-            <CardTitle>Cash Disbursement Ledger</CardTitle>
+            <CardTitle>Disbursement Vouchers</CardTitle>
           </CardHeader>
           <CardContent>
             <DataTable
-              data={expenses}
+              data={disbursements || []}
               columns={expenseColumns}
-              searchPlaceholder="Search by payee, particulars, receipt..."
+              searchPlaceholder="Search by payee, DV number, purpose..."
             />
           </CardContent>
         </Card>
@@ -215,7 +273,7 @@ export default function FinancePage() {
         <div className="space-y-6">
           {/* Budget Summary */}
           <div className="grid gap-4 md:grid-cols-3">
-            {budgetAllocations.map((budget) => (
+            {(budgetAllocations || []).map((budget) => (
               <Card key={budget.id}>
                 <CardHeader>
                   <CardTitle className="text-lg">{budget.source}</CardTitle>
@@ -245,19 +303,19 @@ export default function FinancePage() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Utilization</span>
-                      <span className="font-bold">{budget.utilizationRate}%</span>
+                      <span className="font-bold">{budget.utilizationRate || 0}%</span>
                     </div>
                     <div className="h-2 w-full rounded-full bg-gray-200">
                       <div
                         className={cn(
                           "h-2 rounded-full transition-all",
-                          budget.utilizationRate >= 90
+                          (budget.utilizationRate || 0) >= 90
                             ? "bg-red-600"
-                            : budget.utilizationRate >= 70
+                            : (budget.utilizationRate || 0) >= 70
                               ? "bg-yellow-600"
                               : "bg-green-600"
                         )}
-                        style={{ width: `${budget.utilizationRate}%` }}
+                        style={{ width: `${budget.utilizationRate || 0}%` }}
                       />
                     </div>
                   </div>
@@ -273,7 +331,7 @@ export default function FinancePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {budgetAllocations.map((budget) => (
+                {(budgetAllocations || []).map((budget) => (
                   <div
                     key={budget.id}
                     className="flex items-center justify-between border-b pb-4 last:border-0"
@@ -307,7 +365,7 @@ export default function FinancePage() {
                     </div>
                     <div className="text-right">
                       <div className="flex items-center gap-2">
-                        {budget.utilizationRate >= 70 ? (
+                        {(budget.utilizationRate || 0) >= 70 ? (
                           <TrendingUp className="h-4 w-4 text-red-600" />
                         ) : (
                           <TrendingDown className="h-4 w-4 text-green-600" />
@@ -315,14 +373,14 @@ export default function FinancePage() {
                         <span
                           className={cn(
                             "text-lg font-bold",
-                            budget.utilizationRate >= 90
+                            (budget.utilizationRate || 0) >= 90
                               ? "text-red-600"
-                              : budget.utilizationRate >= 70
+                              : (budget.utilizationRate || 0) >= 70
                                 ? "text-yellow-600"
                                 : "text-green-600"
                           )}
                         >
-                          {budget.utilizationRate}%
+                          {budget.utilizationRate || 0}%
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">

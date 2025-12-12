@@ -124,7 +124,87 @@ export interface PurchaseOrderFilters {
     per_page?: number;
     page?: number;
 }
-  
+
+// ========== QUOTATIONS ==========
+
+export interface Quotation {
+  id: number;
+  quotation_number: string;
+  purchase_request_id: number;
+  supplier_id: number;
+  supplier?: Supplier;
+  quotation_date: string;
+  validity_date?: string;
+  total_amount: number;
+  payment_terms?: string;
+  delivery_terms?: string;
+  status: 'Draft' | 'Submitted' | 'Selected' | 'Rejected';
+  remarks?: string;
+  is_winning_quote?: boolean;
+  items: QuotationItem[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface QuotationItem {
+  id?: number;
+  quotation_id?: number;
+  pr_item_id: number;
+  item_description: string;
+  quantity: number;
+  unit_of_measure: string;
+  unit_price: number;
+  total_price: number;
+  brand_model?: string;
+  specifications?: string;
+}
+
+export interface QuotationFilters {
+  purchase_request_id?: number;
+  supplier_id?: number;
+  status?: string;
+  per_page?: number;
+  page?: number;
+}
+
+// ========== DELIVERIES ==========
+
+export interface Delivery {
+  id: number;
+  delivery_number: string;
+  purchase_order_id: number;
+  purchase_order?: PurchaseOrder;
+  delivery_date: string;
+  received_date?: string;
+  received_by?: number;
+  received_by_name?: string;
+  delivery_receipt_number?: string;
+  notes?: string;
+  status: 'Pending' | 'Partial' | 'Completed' | 'Rejected';
+  items: DeliveryItem[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DeliveryItem {
+  id?: number;
+  delivery_id?: number;
+  po_item_id: number;
+  item_description: string;
+  quantity_ordered: number;
+  quantity_delivered: number;
+  quantity_accepted: number;
+  unit_of_measure: string;
+  condition: 'Good' | 'Damaged' | 'Incomplete';
+  remarks?: string;
+}
+
+export interface DeliveryFilters {
+  purchase_order_id?: number;
+  status?: string;
+  per_page?: number;
+  page?: number;
+}
 
 class ProcurementService {
   // ========== PURCHASE REQUESTS ==========
@@ -156,6 +236,32 @@ class ProcurementService {
     return await apiClient.get('/purchase-requests/statistics');
   }
 
+  // Submit PR for approval
+  async submitPurchaseRequest(id: number): Promise<PurchaseRequest> {
+    return await apiClient.post<PurchaseRequest>(`/purchase-requests/${id}/submit`, {});
+  }
+
+  // Recommend PR (first level approval)
+  async recommendPurchaseRequest(id: number, remarks?: string): Promise<PurchaseRequest> {
+    return await apiClient.post<PurchaseRequest>(`/purchase-requests/${id}/recommend`, {
+      recommendation_remarks: remarks,
+    });
+  }
+
+  // Approve PR (final approval)
+  async approvePurchaseRequest(id: number, remarks?: string): Promise<PurchaseRequest> {
+    return await apiClient.post<PurchaseRequest>(`/purchase-requests/${id}/approve`, {
+      approval_remarks: remarks,
+    });
+  }
+
+  // Disapprove/Reject PR
+  async disapprovePurchaseRequest(id: number, reason: string): Promise<PurchaseRequest> {
+    return await apiClient.post<PurchaseRequest>(`/purchase-requests/${id}/disapprove`, {
+      disapproval_reason: reason,
+    });
+  }
+
   // ========== PURCHASE ORDERS ==========
 
   async getPurchaseOrders(filters?: PurchaseOrderFilters): Promise<PaginatedResponse<PurchaseOrder>> {
@@ -182,6 +288,92 @@ class ProcurementService {
   
   async getPurchaseOrderStatistics(): Promise<any> {
     return await apiClient.get('/purchase-orders/statistics');
+  }
+
+  // Approve Purchase Order
+  async approvePurchaseOrder(id: number): Promise<PurchaseOrder> {
+    return await apiClient.post<PurchaseOrder>(`/purchase-orders/${id}/approve`, {});
+  }
+
+  // Send Purchase Order to Supplier
+  async sendPurchaseOrder(id: number): Promise<PurchaseOrder> {
+    return await apiClient.post<PurchaseOrder>(`/purchase-orders/${id}/send`, {});
+  }
+
+  // ========== QUOTATIONS ==========
+
+  async getQuotations(filters?: QuotationFilters): Promise<PaginatedResponse<Quotation>> {
+    return await apiClient.getPaginated<Quotation>('/quotations', {
+      params: filters,
+    });
+  }
+
+  async getQuotation(id: number): Promise<Quotation> {
+    return await apiClient.get<Quotation>(`/quotations/${id}`);
+  }
+
+  async getQuotationsForPR(prId: number): Promise<Quotation[]> {
+    return await apiClient.get<Quotation[]>(`/purchase-requests/${prId}/quotations`);
+  }
+
+  async createQuotation(data: Partial<Quotation>): Promise<Quotation> {
+    return await apiClient.post<Quotation>('/quotations', data);
+  }
+
+  async updateQuotation(id: number, data: Partial<Quotation>): Promise<Quotation> {
+    return await apiClient.put<Quotation>(`/quotations/${id}`, data);
+  }
+
+  async deleteQuotation(id: number): Promise<void> {
+    await apiClient.delete(`/quotations/${id}`);
+  }
+
+  // Select winning quotation
+  async selectWinningQuotation(id: number): Promise<Quotation> {
+    return await apiClient.post<Quotation>(`/quotations/${id}/select`, {});
+  }
+
+  // ========== DELIVERIES ==========
+
+  async getDeliveries(filters?: DeliveryFilters): Promise<PaginatedResponse<Delivery>> {
+    return await apiClient.getPaginated<Delivery>('/deliveries', {
+      params: filters,
+    });
+  }
+
+  async getDelivery(id: number): Promise<Delivery> {
+    return await apiClient.get<Delivery>(`/deliveries/${id}`);
+  }
+
+  async getDeliveriesForPO(poId: number): Promise<Delivery[]> {
+    return await apiClient.get<Delivery[]>(`/purchase-orders/${poId}/deliveries`);
+  }
+
+  async createDelivery(data: Partial<Delivery>): Promise<Delivery> {
+    return await apiClient.post<Delivery>('/deliveries', data);
+  }
+
+  async updateDelivery(id: number, data: Partial<Delivery>): Promise<Delivery> {
+    return await apiClient.put<Delivery>(`/deliveries/${id}`, data);
+  }
+
+  async deleteDelivery(id: number): Promise<void> {
+    await apiClient.delete(`/deliveries/${id}`);
+  }
+
+  // Accept/Receive Delivery
+  async acceptDelivery(id: number, receivedBy: number, items: DeliveryItem[]): Promise<Delivery> {
+    return await apiClient.post<Delivery>(`/deliveries/${id}/accept`, {
+      received_by: receivedBy,
+      items,
+    });
+  }
+
+  // Reject Delivery
+  async rejectDelivery(id: number, reason: string): Promise<Delivery> {
+    return await apiClient.post<Delivery>(`/deliveries/${id}/reject`, {
+      reason,
+    });
   }
 }
 

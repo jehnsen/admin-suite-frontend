@@ -123,7 +123,7 @@ class FinanceService {
   // ========== CASH ADVANCES ==========
 
   async getCashAdvances(filters?: CashAdvanceFilters): Promise<PaginatedResponse<CashAdvance>> {
-    return await apiClient.get<PaginatedResponse<CashAdvance>>('/cash-advances', {
+    return await apiClient.getPaginated<CashAdvance>('/cash-advances', {
       params: filters,
     });
   }
@@ -159,7 +159,7 @@ class FinanceService {
   // ========== DISBURSEMENTS ==========
 
   async getDisbursements(filters?: DisbursementFilters): Promise<PaginatedResponse<Disbursement>> {
-    return await apiClient.get<PaginatedResponse<Disbursement>>('/disbursements', {
+    return await apiClient.getPaginated<Disbursement>('/disbursements', {
       params: filters,
     });
   }
@@ -202,7 +202,7 @@ class FinanceService {
   // ========== LIQUIDATIONS ==========
 
   async getLiquidations(filters?: LiquidationFilters): Promise<PaginatedResponse<Liquidation>> {
-    return await apiClient.get<PaginatedResponse<Liquidation>>('/liquidations', {
+    return await apiClient.getPaginated<Liquidation>('/liquidations', {
       params: filters,
     });
   }

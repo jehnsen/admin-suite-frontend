@@ -1,23 +1,42 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { procurementService, PurchaseRequest, PRItem } from "@/lib/api/services/procurement.service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, AlertTriangle, User, Calendar, Tag, FileText, DollarSign, List, CheckCircle, XCircle } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, User, Calendar, Tag, FileText, DollarSign, List, CheckCircle, XCircle, Send, ThumbsUp, ThumbsDown } from "lucide-react";
 import Link from "next/link";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 export default function ViewPurchaseRequestPage() {
   const params = useParams();
+  const router = useRouter();
   const id = Number(params.id);
 
   const [purchaseRequest, setPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Dialog states
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showRecommendDialog, setShowRecommendDialog] = useState(false);
+  const [showDisapproveDialog, setShowDisapproveDialog] = useState(false);
+  const [remarks, setRemarks] = useState("");
+  const [reason, setReason] = useState("");
 
   useEffect(() => {
     if (id) {
@@ -36,7 +55,77 @@ export default function ViewPurchaseRequestPage() {
       fetchPurchaseRequest();
     }
   }, [id]);
-  
+
+  const handleSubmit = async () => {
+    try {
+      setActionLoading(true);
+      await procurementService.submitPurchaseRequest(id);
+      const updated = await procurementService.getPurchaseRequest(id);
+      setPurchaseRequest(updated);
+      alert("Purchase Request submitted successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to submit purchase request");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRecommend = async () => {
+    try {
+      setActionLoading(true);
+      await procurementService.recommendPurchaseRequest(id, remarks);
+      const updated = await procurementService.getPurchaseRequest(id);
+      setPurchaseRequest(updated);
+      setShowRecommendDialog(false);
+      setRemarks("");
+      alert("Purchase Request recommended successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to recommend purchase request");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    try {
+      setActionLoading(true);
+      await procurementService.approvePurchaseRequest(id, remarks);
+      const updated = await procurementService.getPurchaseRequest(id);
+      setPurchaseRequest(updated);
+      setShowApproveDialog(false);
+      setRemarks("");
+      alert("Purchase Request approved successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to approve purchase request");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDisapprove = async () => {
+    if (!reason.trim()) {
+      alert("Please provide a reason for disapproval");
+      return;
+    }
+    try {
+      setActionLoading(true);
+      await procurementService.disapprovePurchaseRequest(id, reason);
+      const updated = await procurementService.getPurchaseRequest(id);
+      setPurchaseRequest(updated);
+      setShowDisapproveDialog(false);
+      setReason("");
+      alert("Purchase Request disapproved");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to disapprove purchase request");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const DetailItem = ({ icon, label, value }: { icon: React.ElementType, label: string, value: React.ReactNode }) => (
     <div className="flex items-start">
       <div className="flex-shrink-0">
@@ -107,8 +196,45 @@ export default function ViewPurchaseRequestPage() {
             </div>
         </div>
         <div className="flex gap-2">
+            {purchaseRequest.status === 'Draft' && (
+              <Button onClick={handleSubmit} disabled={actionLoading}>
+                <Send className="mr-2 h-4 w-4" />
+                Submit for Approval
+              </Button>
+            )}
+            {purchaseRequest.status === 'Pending' && (
+              <>
+                <Button variant="outline" onClick={() => setShowRecommendDialog(true)} disabled={actionLoading}>
+                  <ThumbsUp className="mr-2 h-4 w-4" />
+                  Recommend
+                </Button>
+                <Button variant="destructive" onClick={() => setShowDisapproveDialog(true)} disabled={actionLoading}>
+                  <ThumbsDown className="mr-2 h-4 w-4" />
+                  Disapprove
+                </Button>
+              </>
+            )}
+            {purchaseRequest.status === 'Recommended' && (
+              <>
+                <Button onClick={() => setShowApproveDialog(true)} disabled={actionLoading}>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Approve
+                </Button>
+                <Button variant="destructive" onClick={() => setShowDisapproveDialog(true)} disabled={actionLoading}>
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Disapprove
+                </Button>
+              </>
+            )}
+            {purchaseRequest.status === 'Approved' && (
+              <Link href={`/procurement/quotation/new?pr_id=${purchaseRequest.id}`}>
+                <Button>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Request Quotations
+                </Button>
+              </Link>
+            )}
             <Button variant="outline">Print</Button>
-            <Button>Create Purchase Order</Button>
         </div>
       </div>
 
@@ -196,6 +322,106 @@ export default function ViewPurchaseRequestPage() {
             )}
         </div>
       </div>
+
+      {/* Recommend Dialog */}
+      <Dialog open={showRecommendDialog} onOpenChange={setShowRecommendDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Recommend Purchase Request</DialogTitle>
+            <DialogDescription>
+              Add your recommendation remarks for this purchase request.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="remarks">Remarks (Optional)</Label>
+              <Textarea
+                id="remarks"
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                placeholder="Enter your remarks..."
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRecommendDialog(false)} disabled={actionLoading}>
+              Cancel
+            </Button>
+            <Button onClick={handleRecommend} disabled={actionLoading}>
+              {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Recommend
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approve Dialog */}
+      <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve Purchase Request</DialogTitle>
+            <DialogDescription>
+              Add approval remarks for this purchase request.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="approve-remarks">Remarks (Optional)</Label>
+              <Textarea
+                id="approve-remarks"
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                placeholder="Enter approval remarks..."
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApproveDialog(false)} disabled={actionLoading}>
+              Cancel
+            </Button>
+            <Button onClick={handleApprove} disabled={actionLoading}>
+              {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Approve
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Disapprove Dialog */}
+      <Dialog open={showDisapproveDialog} onOpenChange={setShowDisapproveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Disapprove Purchase Request</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for disapproving this purchase request.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reason">Reason *</Label>
+              <Textarea
+                id="reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Enter reason for disapproval..."
+                rows={4}
+                className="border-red-200"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDisapproveDialog(false)} disabled={actionLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDisapprove} disabled={actionLoading}>
+              {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Disapprove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

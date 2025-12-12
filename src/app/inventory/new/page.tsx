@@ -109,9 +109,9 @@ export default function NewInventoryItemPage() {
         status: formData.status,
         location: formData.location || undefined,
         estimated_useful_life: formData.estimated_useful_life ? parseInt(formData.estimated_useful_life) : undefined,
-        depreciation_rate: depreciationRate || undefined,
-        accumulated_depreciation: accumulatedDepreciation,
-        book_value: bookValue,
+        depreciation_rate: depreciationRate ? String(depreciationRate) : undefined,
+        accumulated_depreciation: String(accumulatedDepreciation),
+        book_value: String(bookValue),
         remarks: formData.remarks || undefined,
       };
 

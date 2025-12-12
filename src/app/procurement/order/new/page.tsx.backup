@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,11 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Save, CheckCircle, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { purchaseRequests } from "@/lib/data/procurement";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { useProcurementStore } from "@/lib/store/procurement.store";
-import type { PurchaseRequest } from "@/lib/api/services/procurement.service";
 
 export default function NewPurchaseOrderPage() {
   const router = useRouter();
@@ -33,32 +32,10 @@ export default function NewPurchaseOrderPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const {
-    purchaseRequests,
-    isLoading,
-    error,
-    fetchPurchaseRequests,
-    createPurchaseOrder,
-    clearError,
-  } = useProcurementStore();
+  const approvedPRs = purchaseRequests.filter((pr) => pr.status === "Approved");
+  const selectedPR = purchaseRequests.find((pr) => pr.id === selectedPRId);
 
-  // Fetch approved purchase requests on mount
-  useEffect(() => {
-    const loadApprovedPRs = async () => {
-      try {
-        await fetchPurchaseRequests({ status: 'Approved' });
-      } catch (err) {
-        console.error('Error loading approved purchase requests:', err);
-      }
-    };
-
-    loadApprovedPRs();
-  }, [fetchPurchaseRequests]);
-
-  const approvedPRs = purchaseRequests || [];
-  const selectedPR = approvedPRs.find((pr) => pr.id === Number(selectedPRId));
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation
@@ -78,23 +55,16 @@ export default function NewPurchaseOrderPage() {
       return;
     }
 
-    try {
-      // Create purchase order via API
-      await createPurchaseOrder({
-        pr_id: Number(selectedPRId),
-        supplier_id: 1, // You may need to add supplier selection
-        deliveryDate: formData.deliveryDate,
-        deliveryAddress: formData.deliveryAddress,
-        terms: formData.paymentTerms,
-        status: 'Draft',
-      });
+    // In a real app, this would save to the backend
+    console.log("Purchase order created:", {
+      prId: selectedPRId,
+      ...formData,
+      items: selectedPR?.items,
+      totalAmount: selectedPR?.totalAmount,
+    });
 
-      // Redirect back to procurement
-      router.push("/procurement");
-    } catch (error) {
-      console.error("Failed to create purchase order:", error);
-      // Error is already set in the store
-    }
+    // Redirect back to procurement
+    router.push("/procurement");
   };
 
   const handleChange = (field: string, value: string) => {
@@ -108,39 +78,8 @@ export default function NewPurchaseOrderPage() {
     }
   };
 
-  // Loading state
-  if (isLoading && (!purchaseRequests || purchaseRequests.length === 0)) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading approved purchase requests...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
-      {/* Error Alert */}
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-red-900">Error loading data</p>
-            <p className="text-xs text-red-700 mt-1">{error}</p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={clearError}
-            className="shrink-0"
-          >
-            Dismiss
-          </Button>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/procurement">
@@ -192,9 +131,9 @@ export default function NewPurchaseOrderPage() {
                     <SelectContent>
                       {approvedPRs.length > 0 ? (
                         approvedPRs.map((pr) => (
-                          <SelectItem key={pr.id} value={String(pr.id)}>
-                            {pr.pr_number} - {pr.purpose} (
-                            {formatCurrency(pr.total_amount)})
+                          <SelectItem key={pr.id} value={pr.id}>
+                            {pr.prNumber} - {pr.purpose} (
+                            {formatCurrency(pr.totalAmount)})
                           </SelectItem>
                         ))
                       ) : (
@@ -221,7 +160,7 @@ export default function NewPurchaseOrderPage() {
                       <div>
                         <span className="text-blue-700">Requested by:</span>{" "}
                         <span className="font-medium text-blue-900">
-                          {selectedPR.requested_by?.name || 'N/A'}
+                          {selectedPR.requestedBy}
                         </span>
                       </div>
                       <div>
@@ -233,13 +172,13 @@ export default function NewPurchaseOrderPage() {
                       <div>
                         <span className="text-blue-700">Items:</span>{" "}
                         <span className="font-medium text-blue-900">
-                          {selectedPR.items?.length || 0} items
+                          {selectedPR.items.length} items
                         </span>
                       </div>
                       <div>
                         <span className="text-blue-700">Total:</span>{" "}
                         <span className="font-medium text-blue-900">
-                          {formatCurrency(selectedPR.total_amount)}
+                          {formatCurrency(selectedPR.totalAmount)}
                         </span>
                       </div>
                     </div>
@@ -370,30 +309,30 @@ export default function NewPurchaseOrderPage() {
             </Card>
 
             {/* Items Preview */}
-            {selectedPR && selectedPR.items && selectedPR.items.length > 0 && (
+            {selectedPR && (
               <Card className="transition-all duration-200 hover:shadow-md animate-in slide-in-from-bottom-2">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Items to Order</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {selectedPR.items.map((item) => (
+                    {selectedPR.items.map((item, index) => (
                       <div
                         key={item.id}
                         className="flex items-center justify-between border-b pb-2 last:border-0"
                       >
                         <div>
-                          <p className="text-sm font-medium">{item.item_description}</p>
+                          <p className="text-sm font-medium">{item.itemName}</p>
                           <p className="text-xs text-muted-foreground">
-                            {item.specifications || 'No specifications'}
+                            {item.description}
                           </p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-medium">
-                            {item.quantity} {item.unit_of_measure}
+                            {item.quantity} {item.unit}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {formatCurrency(item.total_cost)}
+                            {formatCurrency(item.estimatedTotalCost)}
                           </p>
                         </div>
                       </div>
@@ -415,19 +354,19 @@ export default function NewPurchaseOrderPage() {
                   <div>
                     <p className="text-xs text-muted-foreground">PR Number</p>
                     <p className="text-sm font-medium font-mono">
-                      {selectedPR.pr_number}
+                      {selectedPR.prNumber}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Total Items</p>
                     <p className="text-base font-bold">
-                      {selectedPR.items?.length || 0}
+                      {selectedPR.items.length}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Total Amount</p>
                     <p className="text-xl font-bold text-primary">
-                      {formatCurrency(selectedPR.total_amount)}
+                      {formatCurrency(selectedPR.totalAmount)}
                     </p>
                   </div>
                 </CardContent>
@@ -437,29 +376,15 @@ export default function NewPurchaseOrderPage() {
             {/* Actions */}
             <Card>
               <CardContent className="pt-4 space-y-2">
-                <Button
-                  type="submit"
-                  className="w-full h-9 text-sm"
-                  disabled={!selectedPRId || isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Create Purchase Order
-                    </>
-                  )}
+                <Button type="submit" className="w-full h-9 text-sm" disabled={!selectedPRId}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Create Purchase Order
                 </Button>
                 <Link href="/procurement" className="block">
                   <Button
                     type="button"
                     variant="outline"
                     className="w-full h-9 text-sm"
-                    disabled={isLoading}
                   >
                     Cancel
                   </Button>

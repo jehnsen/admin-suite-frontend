@@ -109,7 +109,7 @@ export default function LeaveManagementPage() {
     },
     {
       header: "Period",
-      accessor: (row) => row,
+      accessor: "start_date" as any,
       cell: (_, row) => (
         <div className="text-sm">
           <p>{formatDate(row.start_date)}</p>
