@@ -88,6 +88,24 @@ export interface ServiceRecord {
   date_to?: string;
 }
 
+export interface Training {
+  id: number;
+  employee_id: number;
+  employee_name: string;
+  training_title: string;
+  training_type: string;
+  organizer: string;
+  venue: string;
+  start_date: string;
+  end_date: string;
+  hours: number;
+  status: string;
+  certificate_url?: string;
+  remarks?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // API Query Parameters
 export interface EmployeeFilters {
   status?: string;
@@ -371,22 +389,62 @@ class PersonnelService {
   async deleteServiceRecord(id: number): Promise<void> {
     await apiClient.delete(`/service-records/${id}`);
   }
+
+  // ========== TRAININGS ==========
+
+  /**
+   * Get all trainings with filters
+   */
+  async getTrainings(filters?: {
+    employee_id?: number;
+    training_type?: string;
+    status?: string;
+    year?: string;
+    search?: string;
+    per_page?: number;
+    page?: number;
+  }): Promise<PaginatedResponse<Training>> {
+    const response = await apiClient.getRaw('/trainings', {
+      params: filters,
+    });
+    return response as unknown as PaginatedResponse<Training>;
+  }
+
+  /**
+   * Get training by ID
+   */
+  async getTraining(id: number): Promise<Training> {
+    return await apiClient.get<Training>(`/trainings/${id}`);
+  }
+
+  /**
+   * Get trainings by employee ID
+   */
+  async getTrainingsByEmployee(employeeId: number): Promise<Training[]> {
+    return await apiClient.get<Training[]>(`/trainings/employee/${employeeId}`);
+  }
+
+  /**
+   * Create new training record
+   */
+  async createTraining(data: Partial<Training>): Promise<Training> {
+    return await apiClient.post<Training>('/trainings', data);
+  }
+
+  /**
+   * Update training record
+   */
+  async updateTraining(id: number, data: Partial<Training>): Promise<Training> {
+    return await apiClient.put<Training>(`/trainings/${id}`, data);
+  }
+
+  /**
+   * Delete training record
+   */
+  async deleteTraining(id: number): Promise<void> {
+    await apiClient.delete(`/trainings/${id}`);
+  }
 }
-
-  // // ========== TRAININGS ==========
-  //   /**
-  //  * Get service record by ID
-  //  */
-  // async getTrainingRecord(id: number): Promise<ServiceRecord> {
-  //   return await apiClient.get<ServiceRecord>(`/service-records/${id}`);
-  // }
-
-  //   /**
-  //  * Get service records by employee ID (201 File)
-  //  */
-  // async getTrainingsByEmployee(employeeId: number): Promise<ServiceRecord[]> {
-  //   return await apiClient.get<ServiceRecord[]>(`/service-records/employee/${employeeId}`);
-  // }
 
 // Export singleton instance
 export const personnelService = new PersonnelService();

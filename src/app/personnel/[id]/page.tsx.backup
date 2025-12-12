@@ -24,8 +24,6 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { personnelService, Employee, ServiceRecord, LeaveRequest, Training } from "@/lib/api/services";
 import { LeaveRequestModal } from "@/components/leave-request-modal";
-import { ServiceRecordModal } from "@/components/service-record-modal";
-import { TrainingModal } from "@/components/training-modal";
 
 export default function EmployeeProfilePage() {
   const params = useParams();
@@ -41,8 +39,6 @@ export default function EmployeeProfilePage() {
   const [isLoadingTrainings, setIsLoadingTrainings] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leaveRequestModalOpen, setLeaveRequestModalOpen] = useState(false);
-  const [serviceRecordModalOpen, setServiceRecordModalOpen] = useState(false);
-  const [trainingModalOpen, setTrainingModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchEmployee = async () => {
@@ -145,7 +141,7 @@ export default function EmployeeProfilePage() {
   ];
 
   const handlePrint = () => {
-    window.open(`/personnel/${params.id}/print`, '_blank');
+    window.print();
   };
 
   const handleEdit = () => {
@@ -169,35 +165,136 @@ export default function EmployeeProfilePage() {
     }
   };
 
-  const handleServiceRecordSuccess = async () => {
-    // Refresh service records after successful submission
-    try {
-      const data = await personnelService.getServiceRecordsByEmployee(Number(params.id));
-      setServiceRecords(data);
-
-      // Switch to service record tab
-      setActiveTab("service");
-    } catch (err) {
-      console.error("Failed to refresh service records:", err);
-    }
-  };
-
-  const handleTrainingSuccess = async () => {
-    // Refresh trainings after successful submission
-    try {
-      const data = await personnelService.getTrainingsByEmployee(Number(params.id));
-      setTrainings(Array.isArray(data) ? data : []);
-
-      // Switch to training tab
-      setActiveTab("training");
-    } catch (err) {
-      console.error("Failed to refresh trainings:", err);
-    }
-  };
-
   return (
     <>
+      {/* Print Styles */}
+      <style jsx global>{`
+        @media print {
+          /* Hide non-printable elements */
+          .no-print,
+          button,
+          nav,
+          .sidebar,
+          header,
+          footer {
+            display: none !important;
+          }
+
+          /* Reset page layout */
+          body {
+            margin: 0;
+            padding: 20px;
+            background: white;
+          }
+
+          /* Print header */
+          .print-header {
+            display: block !important;
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #000;
+            padding-bottom: 20px;
+          }
+
+          .print-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 5px 0;
+          }
+
+          .print-subtitle {
+            font-size: 14px;
+            margin: 3px 0;
+          }
+
+          /* Content layout */
+          .print-content {
+            display: block !important;
+          }
+
+          .print-section {
+            page-break-inside: avoid;
+            margin-bottom: 20px;
+          }
+
+          .print-section-title {
+            font-size: 14px;
+            font-weight: bold;
+            background: #f0f0f0;
+            padding: 8px;
+            border: 1px solid #000;
+            margin-bottom: 10px;
+          }
+
+          .print-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+          }
+
+          .print-table th,
+          .print-table td {
+            border: 1px solid #000;
+            padding: 6px;
+            font-size: 11px;
+          }
+
+          .print-table th {
+            background: #e0e0e0;
+            font-weight: bold;
+            text-align: left;
+          }
+
+          .print-row {
+            display: flex;
+            margin-bottom: 8px;
+          }
+
+          .print-label {
+            font-weight: bold;
+            width: 180px;
+            font-size: 11px;
+          }
+
+          .print-value {
+            flex: 1;
+            font-size: 11px;
+          }
+
+          /* Hide tabs and interactive elements */
+          .tabs-container {
+            display: none !important;
+          }
+
+          /* Show all tab content */
+          .tab-content {
+            display: block !important;
+          }
+
+          /* Page breaks */
+          .page-break {
+            page-break-before: always;
+          }
+        }
+
+        /* Hide print header on screen */
+        .print-header {
+          display: none;
+        }
+      `}</style>
+
       <div className="space-y-6">
+        {/* Print Header - Only visible when printing */}
+        <div className="print-header">
+          <div className="print-title">REPUBLIC OF THE PHILIPPINES</div>
+          <div className="print-title">DEPARTMENT OF EDUCATION</div>
+          <div className="print-subtitle">Region ___ • Division Office of ___</div>
+          <div className="print-subtitle" style={{ marginTop: '20px', fontSize: '16px' }}>
+            PERSONAL DATA SHEET (201 FILE)
+          </div>
+          <div className="print-subtitle">Employee No: {employee.employee_number}</div>
+        </div>
+
         {/* Screen Header */}
         <div className="flex items-center gap-4 no-print">
           <Button
@@ -250,12 +347,231 @@ export default function EmployeeProfilePage() {
         </div>
       </div>
 
+      {/* Print-Only Full 201 File */}
+      <div className="hidden print:block">
+        {/* I. PERSONAL INFORMATION */}
+        <div className="print-section">
+          <div className="print-section-title">I. PERSONAL INFORMATION</div>
+          <div className="print-row">
+            <div className="print-label">SURNAME:</div>
+            <div className="print-value">{employee.last_name}</div>
+            <div className="print-label">FIRST NAME:</div>
+            <div className="print-value">{employee.first_name}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">MIDDLE NAME:</div>
+            <div className="print-value">{employee.middle_name || "N/A"}</div>
+            <div className="print-label">NAME EXTENSION:</div>
+            <div className="print-value">{employee.suffix || "N/A"}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">DATE OF BIRTH:</div>
+            <div className="print-value">{formatDate(employee.date_of_birth)}</div>
+            <div className="print-label">SEX:</div>
+            <div className="print-value">{employee.gender}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">CIVIL STATUS:</div>
+            <div className="print-value">{employee.civil_status}</div>
+            <div className="print-label">MOBILE NUMBER:</div>
+            <div className="print-value">{employee.mobile_number}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">EMAIL ADDRESS:</div>
+            <div className="print-value" style={{width: '100%'}}>{employee.email}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">RESIDENTIAL ADDRESS:</div>
+            <div className="print-value" style={{width: '100%'}}>
+              {employee.address}
+              {employee.city && `, ${employee.city}`}
+              {employee.province && `, ${employee.province}`}
+              {employee.zip_code && ` ${employee.zip_code}`}
+            </div>
+          </div>
+        </div>
+
+        {/* II. EMPLOYMENT INFORMATION */}
+        <div className="print-section">
+          <div className="print-section-title">II. EMPLOYMENT INFORMATION</div>
+          <div className="print-row">
+            <div className="print-label">EMPLOYEE NUMBER:</div>
+            <div className="print-value">{employee.employee_number}</div>
+            <div className="print-label">PLANTILLA ITEM NO:</div>
+            <div className="print-value">{employee.plantilla_item_no || "N/A"}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">POSITION:</div>
+            <div className="print-value">{employee.position}</div>
+            <div className="print-label">POSITION TITLE:</div>
+            <div className="print-value">{employee.position_title || "N/A"}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">DEPARTMENT:</div>
+            <div className="print-value">{employee.department}</div>
+            <div className="print-label">EMPLOYMENT STATUS:</div>
+            <div className="print-value">{employee.employment_status}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">DATE HIRED:</div>
+            <div className="print-value">{formatDate(employee.date_hired)}</div>
+            <div className="print-label">DATE SEPARATED:</div>
+            <div className="print-value">{employee.date_separated ? formatDate(employee.date_separated) : "N/A"}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">SALARY GRADE:</div>
+            <div className="print-value">{employee.salary_grade}</div>
+            <div className="print-label">STEP INCREMENT:</div>
+            <div className="print-value">{employee.step_increment}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">MONTHLY SALARY:</div>
+            <div className="print-value">₱{employee.monthly_salary.toLocaleString()}</div>
+          </div>
+        </div>
+
+        {/* III. GOVERNMENT ISSUED IDs */}
+        <div className="print-section">
+          <div className="print-section-title">III. GOVERNMENT ISSUED ID's</div>
+          <div className="print-row">
+            <div className="print-label">TIN:</div>
+            <div className="print-value">{employee.tin || "N/A"}</div>
+            <div className="print-label">GSIS NO:</div>
+            <div className="print-value">{employee.gsis_number || "N/A"}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">PhilHealth NO:</div>
+            <div className="print-value">{employee.philhealth_number || "N/A"}</div>
+            <div className="print-label">PAG-IBIG NO:</div>
+            <div className="print-value">{employee.pagibig_number || "N/A"}</div>
+          </div>
+          <div className="print-row">
+            <div className="print-label">SSS NO:</div>
+            <div className="print-value">{employee.sss_number || "N/A"}</div>
+          </div>
+        </div>
+
+        {/* IV. SERVICE RECORD */}
+        <div className="print-section page-break">
+          <div className="print-section-title">IV. SERVICE RECORD</div>
+          {serviceRecords.length > 0 ? (
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>FROM</th>
+                  <th>TO</th>
+                  <th>DESIGNATION</th>
+                  <th>STATION/OFFICE</th>
+                  <th>SALARY</th>
+                  <th>SG</th>
+                  <th>STEP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {serviceRecords.map((record) => (
+                  <tr key={record.id}>
+                    <td>{formatDate(record.from_date)}</td>
+                    <td>{record.to_date ? formatDate(record.to_date) : "Present"}</td>
+                    <td>{record.position}</td>
+                    <td>{record.department}</td>
+                    <td>₱{record.monthly_salary.toLocaleString()}</td>
+                    <td>{record.salary_grade}</td>
+                    <td>{record.step_increment}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p style={{fontSize: '11px', textAlign: 'center', padding: '10px'}}>No service records found</p>
+          )}
+        </div>
+
+        {/* V. LEAVE RECORD */}
+        <div className="print-section">
+          <div className="print-section-title">V. LEAVE RECORD</div>
+          <div className="print-row" style={{marginBottom: '15px'}}>
+            <div className="print-label">Vacation Leave Credits:</div>
+            <div className="print-value">{employee.vacation_leave_credits} days</div>
+            <div className="print-label">Sick Leave Credits:</div>
+            <div className="print-value">{employee.sick_leave_credits} days</div>
+          </div>
+          {leaveHistory.length > 0 ? (
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>LEAVE TYPE</th>
+                  <th>START DATE</th>
+                  <th>END DATE</th>
+                  <th>DAYS</th>
+                  <th>STATUS</th>
+                  <th>REASON</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaveHistory.map((leave) => (
+                  <tr key={leave.id}>
+                    <td>{leave.leave_type}</td>
+                    <td>{formatDate(leave.start_date)}</td>
+                    <td>{formatDate(leave.end_date)}</td>
+                    <td>{leave.working_days}</td>
+                    <td>{leave.status}</td>
+                    <td>{leave.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p style={{fontSize: '11px', textAlign: 'center', padding: '10px'}}>No leave history found</p>
+          )}
+        </div>
+
+        {/* VI. LEARNING AND DEVELOPMENT */}
+        <div className="print-section page-break">
+          <div className="print-section-title">VI. LEARNING AND DEVELOPMENT (L&D) INTERVENTIONS/TRAINING PROGRAMS ATTENDED</div>
+          {trainings.length > 0 ? (
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>TITLE OF TRAINING</th>
+                  <th>TYPE</th>
+                  <th>ORGANIZER</th>
+                  <th>DATE FROM</th>
+                  <th>DATE TO</th>
+                  <th>HOURS</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trainings.map((training) => (
+                  <tr key={training.id}>
+                    <td>{training.training_title}</td>
+                    <td>{training.training_type}</td>
+                    <td>{training.organizer}</td>
+                    <td>{formatDate(training.start_date)}</td>
+                    <td>{formatDate(training.end_date)}</td>
+                    <td>{training.hours}</td>
+                    <td>{training.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p style={{fontSize: '11px', textAlign: 'center', padding: '10px'}}>No training records found</p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{marginTop: '40px', fontSize: '10px', textAlign: 'center', borderTop: '1px solid #000', paddingTop: '10px'}}>
+          <p>This is a system-generated 201 file. Printed on {new Date().toLocaleDateString()}</p>
+        </div>
+      </div>
+
       {/* Tab Content */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3 print-content print:hidden">
         {/* Main Content */}
         <div className="lg:col-span-2">
-          {/* Personal Information */}
-          {activeTab === "personal" && (
+          {/* Personal Information - Always show in print */}
+          <div className={activeTab === "personal" ? "" : "hidden"}>
             <Card>
               <CardHeader>
                 <CardTitle>Personal Information</CardTitle>
@@ -361,20 +677,15 @@ export default function EmployeeProfilePage() {
                 </div>
               </CardContent>
             </Card>
-          )}
+            </div>
+          </div>
 
-          {/* Service Records */}
-          {activeTab === "service" && (
+          {/* Service Records - Always show in print */}
+          <div className={activeTab === "service" ? "" : "hidden print:block"}>
+            <div className="print-section">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader>
                 <CardTitle>Service Record</CardTitle>
-                <Button
-                  size="sm"
-                  onClick={() => setServiceRecordModalOpen(true)}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Record
-                </Button>
               </CardHeader>
               <CardContent>
                 {isLoadingServiceRecords ? (
@@ -415,10 +726,12 @@ export default function EmployeeProfilePage() {
                 )}
               </CardContent>
             </Card>
-          )}
+            </div>
+          </div>
 
-          {/* Leave History */}
-          {activeTab === "leave" && (
+          {/* Leave History - Always show in print */}
+          <div className={activeTab === "leave" ? "" : "hidden print:block"}>
+            <div className="print-section page-break">
             <Card>
               <CardHeader>
                 <CardTitle>Leave History</CardTitle>
@@ -471,20 +784,15 @@ export default function EmployeeProfilePage() {
                 )}
               </CardContent>
             </Card>
-          )}
+            </div>
+          </div>
 
-          {/* Training */}
-          {activeTab === "training" && (
+          {/* Training - Always show in print */}
+          <div className={activeTab === "training" ? "" : "hidden print:block"}>
+            <div className="print-section">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader>
                 <CardTitle>Training & Seminars Attended</CardTitle>
-                <Button
-                  size="sm"
-                  onClick={() => setTrainingModalOpen(true)}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Training
-                </Button>
               </CardHeader>
               <CardContent>
                 {isLoadingTrainings ? (
@@ -544,7 +852,8 @@ export default function EmployeeProfilePage() {
                 )}
               </CardContent>
             </Card>
-          )}
+            </div>
+          </div>
         </div>
 
         {/* Sidebar */}
@@ -624,24 +933,6 @@ export default function EmployeeProfilePage() {
         employeeId={employee.id}
         employeeName={fullName}
         onSuccess={handleLeaveRequestSuccess}
-      />
-
-      {/* Service Record Modal */}
-      <ServiceRecordModal
-        open={serviceRecordModalOpen}
-        onOpenChange={setServiceRecordModalOpen}
-        employeeId={employee.id}
-        employeeName={fullName}
-        onSuccess={handleServiceRecordSuccess}
-      />
-
-      {/* Training Modal */}
-      <TrainingModal
-        open={trainingModalOpen}
-        onOpenChange={setTrainingModalOpen}
-        employeeId={employee.id}
-        employeeName={fullName}
-        onSuccess={handleTrainingSuccess}
       />
     </div>
     </>
