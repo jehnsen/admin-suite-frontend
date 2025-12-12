@@ -1,35 +1,74 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  purchaseRequests,
-  purchaseOrders,
+  procurementService,
   PurchaseRequest,
   PurchaseOrder,
-} from "@/lib/data/procurement";
+} from "@/lib/api/services";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Plus, FileText, ShoppingCart, PackageCheck } from "lucide-react";
+import { Plus, FileText, ShoppingCart, PackageCheck, Loader2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export default function ProcurementPage() {
   const [activeTab, setActiveTab] = useState<"requests" | "orders">("requests");
+  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [stats, setStats] = useState<any>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [prRes, poRes, prStatsRes, poStatsRes] = await Promise.all([
+          procurementService.getPurchaseRequests({ per_page: 25 }),
+          procurementService.getPurchaseOrders({ per_page: 25 }),
+          procurementService.getPurchaseRequestStatistics(),
+          procurementService.getPurchaseOrderStatistics(),
+        ]);
+        setPurchaseRequests(prRes?.data || []);
+        setPurchaseOrders(poRes?.data || []);
+
+        setStats({
+          totalPRs: prStatsRes.total,
+          pendingPRs: prStatsRes.pending,
+          approvedPRs: prStatsRes.approved,
+          totalPOs: poStatsRes.total,
+          pendingPOs: poStatsRes.pending,
+          totalProcurement: prStatsRes.total_value,
+        });
+
+        setError(null);
+      } catch (err) {
+        console.error("Failed to fetch procurement data:", err);
+        setError("Failed to load data. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
 
   const prColumns: Column<PurchaseRequest>[] = [
     {
       header: "PR Number",
-      accessor: "prNumber",
+      accessor: "pr_number",
       cell: (value) => (
         <span className="font-mono text-sm font-medium">{value}</span>
       ),
     },
     {
       header: "Requested By",
-      accessor: "requestedBy",
+      accessor: (row) => row.requested_by.name,
       cell: (value, row) => (
         <div>
           <p className="font-medium">{value}</p>
@@ -41,46 +80,47 @@ export default function ProcurementPage() {
       header: "Purpose",
       accessor: "purpose",
       cell: (value) => (
-        <p className="text-sm max-w-xs truncate" title={value}>
+        <p className="text-sm max-w-xs truncate" title={value as string}>
           {value}
         </p>
       ),
     },
     {
       header: "Items",
-      accessor: (row) => row.items.length,
+      accessor: (row) => row.items?.length || 0,
       cell: (value) => <span className="text-sm">{value} items</span>,
     },
     {
       header: "Total Amount",
-      accessor: "totalAmount",
+      accessor: "total_amount",
       cell: (value) => (
-        <span className="text-sm font-medium">{formatCurrency(value)}</span>
+        <span className="text-sm font-medium">{formatCurrency(value as number)}</span>
       ),
     },
     {
       header: "Date Requested",
-      accessor: "dateRequested",
-      cell: (value) => <span className="text-sm">{formatDate(value)}</span>,
+      accessor: "pr_date",
+      cell: (value) => <span className="text-sm">{formatDate(value as string)}</span>,
     },
     {
       header: "Status",
       accessor: "status",
       cell: (value) => {
+        const status = value as string;
         const variant =
-          value === "Approved"
+          status.toLowerCase() === "approved"
             ? "success"
-            : value === "Pending"
+            : status.toLowerCase() === "pending"
               ? "warning"
-              : value === "Rejected"
+              : status.toLowerCase() === "disapproved" || status.toLowerCase() === "rejected"
                 ? "destructive"
                 : "default";
-        return <Badge variant={variant as any}>{value}</Badge>;
+        return <Badge variant={variant as any}>{status}</Badge>;
       },
     },
     {
       header: "Actions",
-      accessor: (row) => row,
+      accessor: "id",
       cell: (_, row) => (
         <Link href={`/procurement/request/${row.id}`}>
           <Button size="sm" variant="outline">
@@ -94,18 +134,18 @@ export default function ProcurementPage() {
   const poColumns: Column<PurchaseOrder>[] = [
     {
       header: "PO Number",
-      accessor: "poNumber",
+      accessor: "po_number",
       cell: (value) => (
         <span className="font-mono text-sm font-medium">{value}</span>
       ),
     },
     {
       header: "Supplier",
-      accessor: "supplier",
+      accessor: (row) => row.supplier?.name,
       cell: (value, row) => (
         <div>
           <p className="font-medium">{value}</p>
-          <p className="text-xs text-muted-foreground">{row.supplierContact}</p>
+          <p className="text-xs text-muted-foreground">{row.supplier?.contactPerson}</p>
         </div>
       ),
     },
@@ -118,39 +158,42 @@ export default function ProcurementPage() {
       header: "Total Amount",
       accessor: "totalAmount",
       cell: (value) => (
-        <span className="text-sm font-medium">{formatCurrency(value)}</span>
+        <span className="text-sm font-medium">{formatCurrency(value as number)}</span>
       ),
     },
     {
       header: "Date Issued",
-      accessor: "dateIssued",
-      cell: (value) => <span className="text-sm">{formatDate(value)}</span>,
+      accessor: "createdDate",
+      cell: (value) => <span className="text-sm">{formatDate(value as string)}</span>,
     },
     {
       header: "Delivery Date",
       accessor: "deliveryDate",
-      cell: (value) => <span className="text-sm">{formatDate(value)}</span>,
+      cell: (value) => <span className="text-sm">{formatDate(value as string)}</span>,
     },
     {
       header: "Status",
       accessor: "status",
       cell: (value) => {
+        const status = value as string;
         const variant =
-          value === "Delivered"
+          status.toLowerCase() === "delivered"
             ? "success"
-            : value === "Confirmed"
+            : status.toLowerCase() === "confirmed"
               ? "default"
-              : value === "Pending"
-                ? "warning"
-                : value === "Cancelled"
-                  ? "destructive"
-                  : "secondary";
-        return <Badge variant={variant as any}>{value}</Badge>;
+              : status.toLowerCase() === "sent"
+                ? "info"
+                : status.toLowerCase() === "pending"
+                  ? "warning"
+                  : status.toLowerCase() === "cancelled"
+                    ? "destructive"
+                    : "secondary";
+        return <Badge variant={variant as any}>{status}</Badge>;
       },
     },
     {
       header: "Actions",
-      accessor: (row) => row,
+      accessor: () => null,
       cell: (_, row) => (
         <Link href={`/procurement/order/${row.id}`}>
           <Button size="sm" variant="outline">
@@ -161,18 +204,23 @@ export default function ProcurementPage() {
     },
   ];
 
-  const stats = {
-    totalPRs: purchaseRequests.length,
-    pendingPRs: purchaseRequests.filter((pr) => pr.status === "Pending").length,
-    approvedPRs: purchaseRequests.filter((pr) => pr.status === "Approved")
-      .length,
-    totalPOs: purchaseOrders.length,
-    pendingPOs: purchaseOrders.filter((po) => po.status === "Pending").length,
-    totalProcurement: purchaseRequests.reduce(
-      (sum, pr) => sum + pr.totalAmount,
-      0
-    ),
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 bg-red-50 border border-red-200 rounded-lg">
+        <AlertTriangle className="h-8 w-8 text-red-500" />
+        <p className="mt-4 text-lg font-semibold text-red-700">An Error Occurred</p>
+        <p className="text-muted-foreground">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -209,7 +257,7 @@ export default function ProcurementPage() {
             <CardTitle className="text-sm font-medium">Total PRs</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalPRs}</div>
+            <div className="text-2xl font-bold">{stats.totalPRs ?? 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -218,7 +266,7 @@ export default function ProcurementPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">
-              {stats.pendingPRs}
+              {stats.pendingPRs ?? 0}
             </div>
           </CardContent>
         </Card>
@@ -228,7 +276,7 @@ export default function ProcurementPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {stats.approvedPRs}
+              {stats.approvedPRs ?? 0}
             </div>
           </CardContent>
         </Card>
@@ -237,7 +285,7 @@ export default function ProcurementPage() {
             <CardTitle className="text-sm font-medium">Total POs</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalPOs}</div>
+            <div className="text-2xl font-bold">{stats.totalPOs ?? 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -246,7 +294,7 @@ export default function ProcurementPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">
-              {stats.pendingPOs}
+              {stats.pendingPOs ?? 0}
             </div>
           </CardContent>
         </Card>
@@ -258,7 +306,7 @@ export default function ProcurementPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold">
-              {formatCurrency(stats.totalProcurement)}
+              {formatCurrency(stats.totalProcurement ?? 0)}
             </div>
           </CardContent>
         </Card>

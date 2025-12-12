@@ -41,12 +41,12 @@ export function DataTable<T>({
 
   // Filter data based on search
   const filteredData = searchable
-    ? data.filter((row) =>
+    ? (data || []).filter((row) =>
         Object.values(row as any).some((value) =>
           String(value).toLowerCase().includes(searchQuery.toLowerCase())
         )
       )
-    : data;
+    : (data || []);
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / pageSize);

@@ -13,8 +13,12 @@
       "Bash(curl:*)",
       "Bash(php artisan tinker --execute=\"echo \\App\\Models\\User::where(''email'', ''adminofficer@deped.gov.ph'')->exists() ? ''User exists'' : ''User not found'';\")",
       "Bash(php artisan:*)",
+<<<<<<< HEAD
       "Bash(lsof:*)",
       "Bash(xargs kill:*)"
+=======
+      "Bash(npx tsc:*)"
+>>>>>>> b0152cab8a7ba7826369032aacf7c3afe2646c9a
     ],
     "deny": [],
     "ask": []

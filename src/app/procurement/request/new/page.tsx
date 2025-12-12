@@ -14,51 +14,80 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Save, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, Loader2, CalendarIcon } from "lucide-react";
 import Link from "next/link";
 import { employees } from "@/lib/data/personnel";
 import { formatCurrency } from "@/lib/utils";
+import { procurementService, PRItem } from "@/lib/api/services";
 
-interface PRItem {
-  id: string;
-  itemName: string;
-  description: string;
+// Temporary interface for Form State (values as strings for inputs)
+interface PRItemFormState {
+  id: string; // temp ID for UI list
+  item_code: string;
+  item_description: string;
+  specifications: string;
+  unit_of_measure: string;
   quantity: string;
-  unit: string;
-  estimatedUnitCost: string;
+  unit_cost: string;
+  category: string;
+  stock_on_hand: string;
+  monthly_consumption: string;
 }
 
 export default function NewPurchaseRequestPage() {
   const router = useRouter();
+  
+  // Initialize form with today's date
+  const today = new Date().toISOString().split('T')[0];
+
   const [formData, setFormData] = useState({
-    requestedBy: "",
+    pr_date: today,
+    date_needed: "",
+    requested_by: "",
     department: "",
+    section: "",
     purpose: "",
+    fund_source: "",
+    fund_cluster: "",
+    ppmp_reference: "",
+    procurement_mode: "",
+    estimated_budget: "",
+    delivery_location: "Supply Office",
+    terms_and_conditions: ""
   });
 
-  const [items, setItems] = useState<PRItem[]>([
+  const [items, setItems] = useState<PRItemFormState[]>([
     {
       id: "1",
-      itemName: "",
-      description: "",
+      item_code: "",
+      item_description: "",
+      specifications: "",
+      unit_of_measure: "",
       quantity: "1",
-      unit: "",
-      estimatedUnitCost: "",
+      unit_cost: "",
+      category: "",
+      stock_on_hand: "0",
+      monthly_consumption: "0"
     },
   ]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const addItem = () => {
     setItems([
       ...items,
       {
         id: Date.now().toString(),
-        itemName: "",
-        description: "",
+        item_code: "",
+        item_description: "",
+        specifications: "",
+        unit_of_measure: "",
         quantity: "1",
-        unit: "",
-        estimatedUnitCost: "",
+        unit_cost: "",
+        category: "",
+        stock_on_hand: "0",
+        monthly_consumption: "0"
       },
     ]);
   };
@@ -69,7 +98,7 @@ export default function NewPurchaseRequestPage() {
     }
   };
 
-  const updateItem = (id: string, field: string, value: string) => {
+  const updateItem = (id: string, field: keyof PRItemFormState, value: string) => {
     setItems(
       items.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     );
@@ -78,28 +107,29 @@ export default function NewPurchaseRequestPage() {
   const calculateTotal = () => {
     return items.reduce((sum, item) => {
       const qty = parseFloat(item.quantity) || 0;
-      const cost = parseFloat(item.estimatedUnitCost) || 0;
+      const cost = parseFloat(item.unit_cost) || 0;
       return sum + qty * cost;
     }, 0);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
 
-    // Validation
+    // Basic Validation
     const newErrors: Record<string, string> = {};
+    if (!formData.requested_by) newErrors.requested_by = "Required";
+    if (!formData.purpose) newErrors.purpose = "Required";
+    if (!formData.fund_source) newErrors.fund_source = "Required";
+    if (!formData.procurement_mode) newErrors.procurement_mode = "Required";
+    if (!formData.pr_date) newErrors.pr_date = "Required";
 
-    if (!formData.requestedBy) newErrors.requestedBy = "Requester is required";
-    if (!formData.purpose) newErrors.purpose = "Purpose is required";
-
-    // Validate items
+    // Item Validation
     items.forEach((item, index) => {
-      if (!item.itemName) newErrors[`item_${index}_name`] = "Item name required";
-      if (!item.quantity || parseFloat(item.quantity) <= 0)
-        newErrors[`item_${index}_qty`] = "Valid quantity required";
-      if (!item.unit) newErrors[`item_${index}_unit`] = "Unit required";
-      if (!item.estimatedUnitCost || parseFloat(item.estimatedUnitCost) <= 0)
-        newErrors[`item_${index}_cost`] = "Valid cost required";
+      if (!item.item_description) newErrors[`item_${index}_desc`] = "Description required";
+      if (!item.quantity || parseFloat(item.quantity) <= 0) newErrors[`item_${index}_qty`] = "Invalid Qty";
+      if (!item.unit_cost || parseFloat(item.unit_cost) < 0) newErrors[`item_${index}_cost`] = "Invalid Cost";
+      if (!item.unit_of_measure) newErrors[`item_${index}_uom`] = "Unit required";
     });
 
     if (Object.keys(newErrors).length > 0) {
@@ -107,251 +137,247 @@ export default function NewPurchaseRequestPage() {
       return;
     }
 
-    // In a real app, this would save to the backend
-    console.log("Purchase request submitted:", {
-      ...formData,
-      items,
-      totalAmount: calculateTotal(),
-    });
+    setIsSubmitting(true);
 
-    // Redirect back to procurement
-    router.push("/procurement");
+    const totalAmount = calculateTotal();
+
+    // Map to API Payload (Snake Case matching DB)
+    const payload: any = {
+        pr_date: formData.pr_date,
+        date_needed: formData.date_needed || null,
+        requested_by: parseInt(formData.requested_by),
+        department: formData.department,
+        section: formData.section,
+        purpose: formData.purpose,
+        fund_source: formData.fund_source,
+        fund_cluster: formData.fund_cluster,
+        ppmp_reference: formData.ppmp_reference,
+        procurement_mode: formData.procurement_mode,
+        estimated_budget: parseFloat(formData.estimated_budget) || 0,
+        total_amount: totalAmount,
+        delivery_location: formData.delivery_location,
+        terms_and_conditions: formData.terms_and_conditions,
+        status: 'Draft',
+        
+        // Map Items
+        items: items.map((item, index) => ({
+            item_number: index + 1,
+            item_code: item.item_code,
+            item_description: item.item_description,
+            specifications: item.specifications,
+            unit_of_measure: item.unit_of_measure,
+            quantity: parseFloat(item.quantity),
+            unit_cost: parseFloat(item.unit_cost),
+            total_cost: parseFloat(item.quantity) * parseFloat(item.unit_cost),
+            category: item.category,
+            stock_on_hand: parseInt(item.stock_on_hand) || 0,
+            monthly_consumption: parseInt(item.monthly_consumption) || 0,
+        }))
+    };
+
+    try {
+        await procurementService.createPurchaseRequest(payload);
+        // alert("Purchase Request created successfully!"); // Better to use a Toast
+        router.push("/procurement/request");
+    } catch (error) {
+        console.error("Failed to create PR:", error);
+        setErrors({ submit: "Failed to create purchase request. Please check your inputs." });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
-  const selectedEmployee = employees.find((e) => e.id === formData.requestedBy);
+  const selectedEmployee = employees.find((e) => e.id === formData.requested_by);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href="/procurement">
+        <Link href="/procurement/request">
           <Button variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            New Purchase Request
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Create a new purchase request for school supplies and equipment
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">New Purchase Request</h1>
+          <p className="text-muted-foreground mt-1">Fill out the PR form completely.</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit}>
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Main Form */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Request Details */}
+            
+            {/* 1. General Info & Requestor */}
             <Card>
-              <CardHeader>
-                <CardTitle>Request Details</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>General Information</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="requestedBy">
-                    Requested By <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={formData.requestedBy}
-                    onValueChange={(value) => {
-                      setFormData((prev) => ({ ...prev, requestedBy: value }));
-                      const emp = employees.find((e) => e.id === value);
-                      if (emp) {
-                        setFormData((prev) => ({
-                          ...prev,
-                          department: emp.department,
-                        }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger
-                      className={errors.requestedBy ? "border-red-500" : ""}
-                    >
-                      <SelectValue placeholder="Select employee" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.map((emp) => (
-                        <SelectItem key={emp.id} value={emp.id}>
-                          {emp.firstName} {emp.lastName} - {emp.position}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.requestedBy && (
-                    <p className="text-xs text-red-500">{errors.requestedBy}</p>
-                  )}
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label>PR Date *</Label>
+                        <Input type="date" value={formData.pr_date} onChange={e => setFormData({...formData, pr_date: e.target.value})} className={errors.pr_date ? "border-red-500" : ""} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Date Needed</Label>
+                        <Input type="date" value={formData.date_needed} onChange={e => setFormData({...formData, date_needed: e.target.value})} />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                    <Label>Requested By *</Label>
+                    <Select value={formData.requested_by} onValueChange={(val) => {
+                        const emp = employees.find(e => e.id === val);
+                        setFormData(prev => ({ ...prev, requested_by: val, department: emp ? emp.department : "" }));
+                    }}>
+                        <SelectTrigger className={errors.requested_by ? "border-red-500" : ""}>
+                        <SelectValue placeholder="Select Employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                        {employees.map(emp => (
+                            <SelectItem key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</SelectItem>
+                        ))}
+                        </SelectContent>
+                    </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Department</Label>
+                        <Input value={formData.department} disabled className="bg-gray-50" />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label>Section / Unit</Label>
+                        <Input value={formData.section} onChange={e => setFormData({...formData, section: e.target.value})} placeholder="e.g. IT Support" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Delivery Location</Label>
+                        <Input value={formData.delivery_location} onChange={e => setFormData({...formData, delivery_location: e.target.value})} />
+                    </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Input
-                    id="department"
-                    value={formData.department}
-                    disabled
-                    className="bg-gray-50"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="purpose">
-                    Purpose/Justification <span className="text-red-500">*</span>
-                  </Label>
-                  <Textarea
-                    id="purpose"
-                    placeholder="Describe the purpose and justification for this purchase..."
-                    rows={3}
-                    value={formData.purpose}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, purpose: e.target.value }))
-                    }
-                    className={errors.purpose ? "border-red-500" : ""}
-                  />
-                  {errors.purpose && (
-                    <p className="text-xs text-red-500">{errors.purpose}</p>
-                  )}
+                  <Label>Purpose *</Label>
+                  <Textarea rows={3} value={formData.purpose} onChange={e => setFormData({...formData, purpose: e.target.value})} className={errors.purpose ? "border-red-500" : ""} />
                 </div>
               </CardContent>
             </Card>
 
-            {/* Items */}
+            {/* 2. Funding & Procurement Details */}
+            <Card>
+                <CardHeader><CardTitle>Funding & Mode</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Fund Source *</Label>
+                            <Select value={formData.fund_source} onValueChange={val => setFormData({...formData, fund_source: val})}>
+                                <SelectTrigger className={errors.fund_source ? "border-red-500" : ""}><SelectValue placeholder="Select Source" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="MOOE">MOOE</SelectItem>
+                                    <SelectItem value="SEF">SEF</SelectItem>
+                                    <SelectItem value="Special Education Fund">Special Education Fund</SelectItem>
+                                    <SelectItem value="Canteen Fund">Canteen Fund</SelectItem>
+                                    <SelectItem value="Donation">Donation</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Fund Cluster</Label>
+                            <Input value={formData.fund_cluster} onChange={e => setFormData({...formData, fund_cluster: e.target.value})} placeholder="e.g. 01" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Procurement Mode *</Label>
+                            <Select value={formData.procurement_mode} onValueChange={val => setFormData({...formData, procurement_mode: val})}>
+                                <SelectTrigger className={errors.procurement_mode ? "border-red-500" : ""}><SelectValue placeholder="Select Mode" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Small Value Procurement">Small Value Procurement</SelectItem>
+                                    <SelectItem value="Shopping">Shopping</SelectItem>
+                                    <SelectItem value="Public Bidding">Public Bidding</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>PPMP Reference</Label>
+                            <Input value={formData.ppmp_reference} onChange={e => setFormData({...formData, ppmp_reference: e.target.value})} placeholder="Ref Code" />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Estimated Budget (Allocation)</Label>
+                        <Input type="number" step="0.01" value={formData.estimated_budget} onChange={e => setFormData({...formData, estimated_budget: e.target.value})} />
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* 3. Items */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Items to Purchase</CardTitle>
-                <Button type="button" onClick={addItem} size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Item
-                </Button>
+                <CardTitle>Items</CardTitle>
+                <Button type="button" onClick={addItem} size="sm"><Plus className="h-4 w-4 mr-1" /> Add Item</Button>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
                 {items.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className="border rounded-lg p-4 space-y-3 relative"
-                  >
-                    {items.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="absolute top-2 right-2"
-                        onClick={() => removeItem(item.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    )}
-
-                    <h4 className="font-medium text-sm text-muted-foreground">
-                      Item #{index + 1}
-                    </h4>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Item Name *</Label>
-                        <Input
-                          value={item.itemName}
-                          onChange={(e) =>
-                            updateItem(item.id, "itemName", e.target.value)
-                          }
-                          className={
-                            errors[`item_${index}_name`] ? "border-red-500" : ""
-                          }
-                        />
-                        {errors[`item_${index}_name`] && (
-                          <p className="text-xs text-red-500">
-                            {errors[`item_${index}_name`]}
-                          </p>
+                  <div key={item.id} className="border rounded-lg p-4 space-y-4 relative bg-gray-50/50">
+                    <div className="flex justify-between items-center">
+                        <h4 className="font-semibold text-sm">Item #{index + 1}</h4>
+                        {items.length > 1 && (
+                            <Button type="button" variant="ghost" size="sm" className="text-red-500 h-8 w-8 p-0" onClick={() => removeItem(item.id)}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
                         )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Description</Label>
-                        <Input
-                          value={item.description}
-                          onChange={(e) =>
-                            updateItem(item.id, "description", e.target.value)
-                          }
-                        />
-                      </div>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-3">
-                      <div className="space-y-2">
-                        <Label>Quantity *</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) =>
-                            updateItem(item.id, "quantity", e.target.value)
-                          }
-                          className={
-                            errors[`item_${index}_qty`] ? "border-red-500" : ""
-                          }
-                        />
-                        {errors[`item_${index}_qty`] && (
-                          <p className="text-xs text-red-500">
-                            {errors[`item_${index}_qty`]}
-                          </p>
-                        )}
-                      </div>
+                    <div className="grid grid-cols-12 gap-3">
+                        {/* First Row: Codes and Basic Info */}
+                        <div className="col-span-3 space-y-1">
+                            <Label className="text-xs">Item Code</Label>
+                            <Input className="h-8" value={item.item_code} onChange={e => updateItem(item.id, "item_code", e.target.value)} />
+                        </div>
+                        <div className="col-span-6 space-y-1">
+                            <Label className="text-xs">Description *</Label>
+                            <Input className={`h-8 ${errors[`item_${index}_desc`] ? "border-red-500" : ""}`} value={item.item_description} onChange={e => updateItem(item.id, "item_description", e.target.value)} />
+                        </div>
+                        <div className="col-span-3 space-y-1">
+                            <Label className="text-xs">Category</Label>
+                            <Input className="h-8" value={item.category} onChange={e => updateItem(item.id, "category", e.target.value)} />
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label>Unit *</Label>
-                        <Input
-                          value={item.unit}
-                          onChange={(e) =>
-                            updateItem(item.id, "unit", e.target.value)
-                          }
-                          placeholder="pcs, box, ream"
-                          className={
-                            errors[`item_${index}_unit`] ? "border-red-500" : ""
-                          }
-                        />
-                        {errors[`item_${index}_unit`] && (
-                          <p className="text-xs text-red-500">
-                            {errors[`item_${index}_unit`]}
-                          </p>
-                        )}
-                      </div>
+                        {/* Second Row: Specs (Full Width) */}
+                        <div className="col-span-12 space-y-1">
+                            <Label className="text-xs">Specifications</Label>
+                            <Input className="h-8" placeholder="Brand, Model, Color, etc." value={item.specifications} onChange={e => updateItem(item.id, "specifications", e.target.value)} />
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label>Est. Unit Cost *</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={item.estimatedUnitCost}
-                          onChange={(e) =>
-                            updateItem(
-                              item.id,
-                              "estimatedUnitCost",
-                              e.target.value
-                            )
-                          }
-                          className={
-                            errors[`item_${index}_cost`] ? "border-red-500" : ""
-                          }
-                        />
-                        {errors[`item_${index}_cost`] && (
-                          <p className="text-xs text-red-500">
-                            {errors[`item_${index}_cost`]}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                        {/* Third Row: Quantities and Costs */}
+                        <div className="col-span-2 space-y-1">
+                             <Label className="text-xs">Qty *</Label>
+                             <Input type="number" className="h-8" value={item.quantity} onChange={e => updateItem(item.id, "quantity", e.target.value)} />
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                             <Label className="text-xs">Unit *</Label>
+                             <Input className="h-8" placeholder="pcs" value={item.unit_of_measure} onChange={e => updateItem(item.id, "unit_of_measure", e.target.value)} />
+                        </div>
+                        <div className="col-span-3 space-y-1">
+                             <Label className="text-xs">Unit Cost *</Label>
+                             <Input type="number" step="0.01" className="h-8" value={item.unit_cost} onChange={e => updateItem(item.id, "unit_cost", e.target.value)} />
+                        </div>
+                        <div className="col-span-3 space-y-1">
+                             <Label className="text-xs">Total Cost</Label>
+                             <div className="h-8 flex items-center px-3 bg-gray-100 rounded text-sm font-medium">
+                                {formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_cost) || 0))}
+                             </div>
+                        </div>
 
-                    <div className="bg-gray-50 p-2 rounded">
-                      <p className="text-sm text-muted-foreground">
-                        Item Total:{" "}
-                        <span className="font-medium text-foreground">
-                          {formatCurrency(
-                            (parseFloat(item.quantity) || 0) *
-                              (parseFloat(item.estimatedUnitCost) || 0)
-                          )}
-                        </span>
-                      </p>
+                         {/* Fourth Row: Inventory Stats */}
+                         <div className="col-span-3 space-y-1">
+                             <Label className="text-xs text-muted-foreground">Stock On Hand</Label>
+                             <Input type="number" className="h-8 bg-white" value={item.stock_on_hand} onChange={e => updateItem(item.id, "stock_on_hand", e.target.value)} />
+                        </div>
+                        <div className="col-span-3 space-y-1">
+                             <Label className="text-xs text-muted-foreground">Monthly Cons.</Label>
+                             <Input type="number" className="h-8 bg-white" value={item.monthly_consumption} onChange={e => updateItem(item.id, "monthly_consumption", e.target.value)} />
+                        </div>
                     </div>
                   </div>
                 ))}
@@ -361,61 +387,29 @@ export default function NewPurchaseRequestPage() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {selectedEmployee && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Requester Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Name</p>
-                    <p className="font-medium">
-                      {selectedEmployee.firstName} {selectedEmployee.lastName}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Position</p>
-                    <p className="font-medium">{selectedEmployee.position}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Department</p>
-                    <p className="font-medium">{selectedEmployee.department}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Request Summary</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-base">Summary</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Items</p>
-                  <p className="text-lg font-bold">{items.length}</p>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Total Items</span>
+                  <span className="font-bold">{items.length}</span>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Estimated Total
-                  </p>
-                  <p className="text-2xl font-bold text-primary">
-                    {formatCurrency(calculateTotal())}
-                  </p>
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <span className="text-sm font-medium">Grand Total</span>
+                  <span className="text-xl font-bold text-primary">{formatCurrency(calculateTotal())}</span>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Actions */}
             <Card>
               <CardContent className="pt-6 space-y-2">
-                <Button type="submit" className="w-full">
-                  <Save className="mr-2 h-4 w-4" />
-                  Submit Purchase Request
+                {errors.submit && <p className="text-sm text-red-500 text-center">{errors.submit}</p>}
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
+                  Submit Request
                 </Button>
-                <Link href="/procurement" className="block">
-                  <Button type="button" variant="outline" className="w-full">
-                    Cancel
-                  </Button>
+                <Link href="/procurement/request" className="block">
+                    <Button variant="outline" className="w-full" type="button">Cancel</Button>
                 </Link>
               </CardContent>
             </Card>

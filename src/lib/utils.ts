@@ -13,6 +13,7 @@ export function formatCurrency(amount: number): string {
 }
 
 export function formatDate(date: Date | string): string {
+  if (!date) return "N/A";
   return new Intl.DateTimeFormat("en-PH", {
     year: "numeric",
     month: "short",
