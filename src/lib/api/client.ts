@@ -132,6 +132,11 @@ class ApiClient {
     return response.data.data as T;
   }
 
+  async getPaginated<T>(url: string, config?: AxiosRequestConfig): Promise<PaginatedResponse<T>> {
+    const response = await this.client.get<PaginatedResponse<T>>(url, config);
+    return response.data;
+  }
+
   // Raw response methods (for when you need full response with message)
   async getRaw<T = any>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     const response = await this.client.get<ApiResponse<T>>(url, config);

@@ -57,9 +57,46 @@ export default function Print201FilePage() {
       </div>
     );
   }
+  const handlePrint = () => {
+    const printContents = document.getElementById("print-area")?.innerHTML;
+    if (!printContents) return;
+    const printWindow = window.open("", "_blank", "width=1200,height=1200");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print 201 File</title>
+          <style>
+            @media print {
+              @page { margin: 0.5in; size: A4; }
+              body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+            }
+            .print-section { margin-bottom: 15px; }
+            .print-section-title { font-size: 10pt; font-weight: bold; background: #e0e0e0; padding: 4px 8px; border: 1px solid #000; border-bottom: none; text-transform: uppercase; }
+            .print-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+            .print-table th, .print-table td { border: 1px solid #000; padding: 4px 6px; vertical-align: top; }
+            .print-table th { background: #f0f0f0; font-weight: bold; text-align: center; }
+            .label-cell { background-color: #f8f8f8; font-weight: bold; width: 18%; }
+            .value-cell { width: 32%; }
+            .page-break { page-break-before: always; }
+            .signature-section { margin-top: 40px; display: flex; justify-content: space-between; page-break-inside: avoid; }
+            .signature-box { width: 40%; text-align: center; }
+            .signature-line { border-top: 1px solid #000; margin-top: 30px; padding-top: 5px; font-weight: bold; font-size: 10pt; }
+        
+          </style>
+        </head>
+        <body>${printContents}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
 
   return (
-    <div className="p-8 max-w-[210mm] mx-auto bg-white text-black">
+    <div id="print-area" className="p-8 max-w-[210mm] mx-auto bg-white text-black">
       <style jsx global>{`
         @media print {
           @page {
@@ -141,6 +178,14 @@ export default function Print201FilePage() {
       `}</style>
 
       {/* Header */}
+      <button
+        onClick={handlePrint}
+        className="mb-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 print:hidden"
+        style={{ position: "fixed", top: 24, right: 24, zIndex: 1000 }}
+        type="button"
+      >
+        Print
+      </button>
       <div className="text-center mb-8">
           <h2 className="text-[11pt] font-normal m-0">Republic of the Philippines</h2>
           <h2 className="text-[11pt] font-normal m-0">Department of Education</h2>
