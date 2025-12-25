@@ -307,7 +307,7 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>School Information</CardTitle>
               <CardDescription>
-                Configure your school's details for reports and documents
+                Configure your school&apos;s details for reports and documents
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">

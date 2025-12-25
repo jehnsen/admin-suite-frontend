@@ -3,14 +3,31 @@ import apiClient, { PaginatedResponse } from '../client';
 // Types
 export interface BudgetAllocation {
   id: number;
-  source: string;
-  allocated: number;
-  spent: number;
-  remaining: number;
-  utilizationRate: number;
-  fiscalYear: string;
+  budget_code?: string;
+  budget_name?: string;
+  fund_source?: string;
+  source: string; // Alias for fund_source for backward compatibility
+  fiscal_year?: number;
+  fiscalYear: string; // Alias for fiscal_year for backward compatibility
+  allocated_amount?: number;
+  allocated: number; // Alias for allocated_amount
+  utilized_amount?: number;
+  spent: number; // Alias for utilized_amount
+  remaining_balance?: number;
+  remaining: number; // Alias for remaining_balance
+  utilizationRate: number; // Calculated field
+  status?: 'Active' | 'Inactive' | 'Closed';
+  classification?: string;
+  start_date?: string;
+  end_date?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface CreateBudgetAllocationData {
+  fund_source: string;
+  allocated_amount: number;
+  fiscal_year: number;
 }
 
 export interface CashAdvance {
@@ -102,6 +119,24 @@ export interface LiquidationFilters {
 }
 
 class FinanceService {
+  // ========== BUDGETS ==========
+
+  async getBudgets(): Promise<BudgetAllocation[]> {
+    return await apiClient.get<BudgetAllocation[]>('/budgets');
+  }
+
+  async getBudgetUtilization(): Promise<any> {
+    return await apiClient.get('/budgets/utilization');
+  }
+
+  async getBudgetStatistics(): Promise<any> {
+    return await apiClient.get('/budgets/statistics');
+  }
+
+  async getBudgetByFiscalYear(year: string): Promise<BudgetAllocation[]> {
+    return await apiClient.get<BudgetAllocation[]>(`/budgets/fiscal-year/${year}`);
+  }
+
   // ========== BUDGET ALLOCATIONS ==========
 
   async getBudgetAllocations(): Promise<BudgetAllocation[]> {
@@ -112,8 +147,38 @@ class FinanceService {
     return await apiClient.get<BudgetAllocation>(`/budget-allocations/${id}`);
   }
 
-  async createBudgetAllocation(data: Partial<BudgetAllocation>): Promise<BudgetAllocation> {
-    return await apiClient.post<BudgetAllocation>('/budget-allocations', data);
+  async createBudgetAllocation(data: CreateBudgetAllocationData): Promise<BudgetAllocation> {
+    const response = await apiClient.post<BudgetAllocation>('/budget-allocations', data);
+    // Transform backend response to match our interface
+    return this.transformBudgetAllocation(response);
+  }
+
+  // Helper method to transform backend response to frontend format
+  private transformBudgetAllocation(budget: any): BudgetAllocation {
+    return {
+      id: budget.id,
+      budget_code: budget.budget_code,
+      budget_name: budget.budget_name,
+      fund_source: budget.fund_source,
+      source: budget.fund_source || budget.source,
+      fiscal_year: budget.fiscal_year,
+      fiscalYear: budget.fiscal_year?.toString() || budget.fiscalYear,
+      allocated_amount: parseFloat(budget.allocated_amount || budget.allocated || 0),
+      allocated: parseFloat(budget.allocated_amount || budget.allocated || 0),
+      utilized_amount: parseFloat(budget.utilized_amount || budget.spent || 0),
+      spent: parseFloat(budget.utilized_amount || budget.spent || 0),
+      remaining_balance: parseFloat(budget.remaining_balance || budget.remaining || 0),
+      remaining: parseFloat(budget.remaining_balance || budget.remaining || 0),
+      utilizationRate: budget.allocated_amount > 0
+        ? Math.round((parseFloat(budget.utilized_amount || 0) / parseFloat(budget.allocated_amount)) * 100)
+        : 0,
+      status: budget.status,
+      classification: budget.classification,
+      start_date: budget.start_date,
+      end_date: budget.end_date,
+      created_at: budget.created_at,
+      updated_at: budget.updated_at,
+    };
   }
 
   async updateBudgetAllocation(id: number, data: Partial<BudgetAllocation>): Promise<BudgetAllocation> {

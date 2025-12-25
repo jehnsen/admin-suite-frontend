@@ -21,7 +21,7 @@ export default function FinancePage() {
     isLoading,
     error,
     fetchDisbursements,
-    fetchBudgetAllocations,
+    fetchBudgets,
     clearError,
   } = useFinanceStore();
 
@@ -35,14 +35,14 @@ export default function FinancePage() {
       }
 
       try {
-        await fetchBudgetAllocations();
+        await fetchBudgets();
       } catch (err) {
-        console.error('Error loading budget allocations:', err);
+        console.error('Error loading budgets:', err);
       }
     };
 
     loadData();
-  }, [fetchDisbursements, fetchBudgetAllocations]);
+  }, [fetchDisbursements, fetchBudgets]);
 
   const expenseColumns: Column<Disbursement>[] = [
     {

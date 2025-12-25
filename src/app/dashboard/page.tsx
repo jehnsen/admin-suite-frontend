@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,14 +14,39 @@ import {
   Package,
   Receipt,
   Clock,
+  Loader2,
 } from "lucide-react";
-import { employees, leaveRequests } from "@/lib/data/personnel";
-import { inventoryItems } from "@/lib/data/inventory";
-import { budgetAllocations } from "@/lib/data/finance";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
+import { financeService, BudgetAllocation } from "@/lib/api/services/finance.service";
+import { employees, leaveRequests } from "@/lib/data/personnel";
+import { inventoryItems } from "@/lib/data/inventory";
 
 export default function DashboardPage() {
+  const [budgetAllocations, setBudgetAllocations] = useState<BudgetAllocation[]>([]);
+  const [budgetStats, setBudgetStats] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBudgetData = async () => {
+      try {
+        setIsLoading(true);
+        const [budgets, stats] = await Promise.all([
+          financeService.getBudgets(),
+          financeService.getBudgetStatistics(),
+        ]);
+        setBudgetAllocations(budgets);
+        setBudgetStats(stats);
+      } catch (error) {
+        console.error("Failed to fetch budget data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchBudgetData();
+  }, []);
+
   // Calculate stats
   const totalPersonnel = employees.length;
   const activeLeaves = leaveRequests.filter((req) => req.status === "Pending")
@@ -242,8 +270,21 @@ export default function DashboardPage() {
             <CardTitle className="text-base font-semibold text-gray-900">Budget Utilization Overview</CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="space-y-6">
-              {budgetAllocations.map((budget, index) => (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : budgetAllocations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+                  <DollarSign className="h-6 w-6 text-gray-400" />
+                </div>
+                <p className="text-sm font-medium text-gray-900 mb-1">No budget data</p>
+                <p className="text-xs text-gray-500">Budget information will appear here</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {budgetAllocations.map((budget, index) => (
                 <div
                   key={budget.id}
                   className="space-y-3 fade-in p-4 rounded-xl bg-gradient-to-r from-gray-50 to-transparent border border-gray-100"
@@ -281,7 +322,8 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

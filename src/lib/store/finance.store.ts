@@ -62,6 +62,11 @@ interface FinanceState {
 
   // ============== Budget Allocations ==============
   fetchBudgetAllocations: () => Promise<void>;
+  fetchBudgets: () => Promise<void>;
+  fetchBudgetUtilization: () => Promise<any>;
+  fetchBudgetStatistics: () => Promise<any>;
+  fetchBudgetByFiscalYear: (year: string) => Promise<void>;
+  createBudgetAllocation: (data: { fund_source: string; allocated_amount: number; fiscal_year: number }) => Promise<BudgetAllocation>;
   updateBudgetAllocation: (id: number, data: Partial<BudgetAllocation>) => Promise<void>;
 
   // ============== Cash Advances ==============
@@ -343,6 +348,87 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         isLoading: false,
         budgetAllocations: [],
       });
+    }
+  },
+
+  fetchBudgets: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      const budgetAllocations = await financeService.getBudgets();
+      set({ budgetAllocations, isLoading: false });
+    } catch (error: any) {
+      console.error('Budgets fetch error:', error);
+      set({
+        error: error.message || error.toString() || 'Failed to fetch budgets',
+        isLoading: false,
+        budgetAllocations: [],
+      });
+    }
+  },
+
+  fetchBudgetUtilization: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      const utilization = await financeService.getBudgetUtilization();
+      set({ isLoading: false });
+      return utilization;
+    } catch (error: any) {
+      console.error('Budget utilization fetch error:', error);
+      set({
+        error: error.message || 'Failed to fetch budget utilization',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  fetchBudgetStatistics: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      const statistics = await financeService.getBudgetStatistics();
+      set({ isLoading: false });
+      return statistics;
+    } catch (error: any) {
+      console.error('Budget statistics fetch error:', error);
+      set({
+        error: error.message || 'Failed to fetch budget statistics',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  fetchBudgetByFiscalYear: async (year: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      const budgetAllocations = await financeService.getBudgetByFiscalYear(year);
+      set({ budgetAllocations, isLoading: false });
+    } catch (error: any) {
+      console.error('Budget by fiscal year fetch error:', error);
+      set({
+        error: error.message || 'Failed to fetch budget by fiscal year',
+        isLoading: false,
+        budgetAllocations: [],
+      });
+    }
+  },
+
+  createBudgetAllocation: async (data: { fund_source: string; allocated_amount: number; fiscal_year: number }) => {
+    try {
+      set({ isLoading: true, error: null });
+      const allocation = await financeService.createBudgetAllocation(data);
+      set((state) => ({
+        budgetAllocations: [allocation, ...state.budgetAllocations],
+        isLoading: false,
+      }));
+      return allocation;
+    } catch (error: any) {
+      console.error('Budget allocation creation error:', error);
+      set({
+        error: error.message || 'Failed to create budget allocation',
+        isLoading: false,
+      });
+      throw error;
     }
   },
 
