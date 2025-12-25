@@ -32,6 +32,7 @@ export default function CashDisbursementReport() {
 
   useEffect(() => {
     fetchDisbursements(filters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleApplyFilters = () => {

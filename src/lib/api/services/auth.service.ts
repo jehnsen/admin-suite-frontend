@@ -40,8 +40,8 @@ class AuthService {
     // Backend response: { message, token, user }
     // Not: { message, data: { token, user } }
     const loginResponse: LoginResponse = {
-      token: response.token || response.data?.token,
-      user: response.user || response.data?.user,
+      token: (response as any).token || response.data?.token,
+      user: (response as any).user || response.data?.user,
     };
 
     // Check if we got the required fields
@@ -65,8 +65,8 @@ class AuthService {
     // Backend response: { message, token, user }
     // Not: { message, data: { token, user } }
     const loginResponse: LoginResponse = {
-      token: response.token || response.data?.token,
-      user: response.user || response.data?.user,
+      token: (response as any).token || response.data?.token,
+      user: (response as any).user || response.data?.user,
     };
 
     // Check if we got the required fields

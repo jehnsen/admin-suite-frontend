@@ -141,7 +141,7 @@ export default function ProcurementPage() {
     },
     {
       header: "Supplier",
-      accessor: (row) => row.supplier?.name,
+      accessor: (row) => row.supplier?.business_name,
       cell: (value, row) => (
         <div>
           <p className="font-medium">{value}</p>

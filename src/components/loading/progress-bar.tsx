@@ -20,9 +20,8 @@ export function ProgressBar() {
 
   useEffect(() => {
     // Start progress bar when navigation begins
-    if (isNavigating) {
-      NProgress.start();
-    }
+    NProgress.start();
+    setIsNavigating(true);
 
     // Complete progress bar when page loads
     const timer = setTimeout(() => {
@@ -32,7 +31,6 @@ export function ProgressBar() {
 
     return () => {
       clearTimeout(timer);
-      setIsNavigating(true);
     };
   }, [pathname, searchParams]);
 

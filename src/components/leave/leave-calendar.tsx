@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { LeaveRequest } from "@/lib/data/personnel";
+import { LeaveRequest } from "@/lib/api/services/personnel.service";
 
 interface LeaveCalendarProps {
   leaveRequests: LeaveRequest[];
@@ -66,8 +66,8 @@ export function LeaveCalendar({ leaveRequests }: LeaveCalendarProps) {
     return leaveRequests.filter((leave) => {
       if (leave.status !== "Approved") return false;
 
-      const startDate = new Date(leave.startDate);
-      const endDate = new Date(leave.endDate);
+      const startDate = new Date(leave.start_date);
+      const endDate = new Date(leave.end_date);
 
       return checkDate >= startDate && checkDate <= endDate;
     });
@@ -112,9 +112,9 @@ export function LeaveCalendar({ leaveRequests }: LeaveCalendarProps) {
                   <div
                     key={leave.id}
                     className="text-xs bg-yellow-200 text-yellow-900 rounded px-1 py-0.5 truncate"
-                    title={`${leave.employeeName} - ${leave.leaveType}`}
+                    title={`${leave.employee_name} - ${leave.leave_type}`}
                   >
-                    {leave.employeeName.split(" ")[0]}
+                    {leave.employee_name.split(" ")[0]}
                   </div>
                 ))}
                 {leavesOnDay.length > 2 && (
